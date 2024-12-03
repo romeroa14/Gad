@@ -13,6 +13,11 @@ return new class extends Migration
     {
         Schema::create('finances', function (Blueprint $table) {
             $table->id();
+            $table->decimal('total_income', 15, 2);
+            $table->decimal('total_expenses', 15, 2);
+            $table->decimal('net_profit', 15, 2);
+            $table->string('month');
+            $table->integer('year');
             $table->timestamps();
         });
     }

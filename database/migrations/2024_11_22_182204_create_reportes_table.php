@@ -13,6 +13,9 @@ return new class extends Migration
     {
         Schema::create('reportes', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('campaign_id')->constrained('ads_campaigns')->onDelete('cascade');
+            $table->json('metrics'); // JSON para almacenar clics, impresiones, conversiones, etc.
+            $table->date('report_date');
             $table->timestamps();
         });
     }

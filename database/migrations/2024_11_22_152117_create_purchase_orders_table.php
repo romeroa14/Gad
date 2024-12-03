@@ -13,6 +13,10 @@ return new class extends Migration
     {
         Schema::create('purchase_orders', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('supplier_id')->onDelete('cascade');
+            $table->date('order_date');
+            $table->decimal('total_amount', 15, 2);
+            $table->string('status');
             $table->timestamps();
         });
     }

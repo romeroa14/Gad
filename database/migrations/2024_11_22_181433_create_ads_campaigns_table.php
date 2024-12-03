@@ -13,6 +13,13 @@ return new class extends Migration
     {
         Schema::create('ads_campaigns', function (Blueprint $table) {
             $table->id();
+            $table->string('name');
+            $table->foreignId('plan_id')->constrained('plans')->onDelete('cascade');
+            $table->date('start_date');
+            $table->date('end_date');
+            $table->decimal('budget', 15, 2);
+            $table->decimal('actual_cost', 15, 2)->nullable();
+            $table->string('status'); // Activa, Pausada, Finalizada
             $table->timestamps();
         });
     }

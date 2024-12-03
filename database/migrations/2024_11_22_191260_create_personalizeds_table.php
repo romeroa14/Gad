@@ -13,6 +13,10 @@ return new class extends Migration
     {
         Schema::create('personalizeds', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('client_id')->constrained('clients')->onDelete('cascade');
+            $table->foreignId('ads_campaign_id')->constrained('ads_campaigns')->onDelete('cascade');
+            $table->decimal('fees', 15, 2);
+            $table->integer('duration'); // Duración en días/semanas
             $table->timestamps();
         });
     }

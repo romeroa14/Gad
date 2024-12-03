@@ -11,13 +11,13 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('service_plans', function (Blueprint $table) {
+        Schema::create('plans', function (Blueprint $table) {
             $table->id();
             $table->string('daily_investment');
-            $table->string('days');
+            $table->string('duration');
             $table->string('scope');
-            $table->integer('cost');
-            $table->integer('price');
+            $table->decimal('investment', 15, 2);
+            $table->decimal('price', 15, 2);
             $table->timestamps();
         });
     }

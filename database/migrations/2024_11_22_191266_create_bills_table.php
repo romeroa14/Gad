@@ -20,8 +20,9 @@ return new class extends Migration
             $table->date('date_beginning');
             $table->date('date_end');
             $table->decimal('discount_percentage', 5, 2)->nullable();
-            $table->decimal('amount', 8, 2);
-
+            $table->decimal('amount', 15, 2);
+            $table->string('status');
+            
             $table->foreign('client_id')->references('id')->on('clients')->onDelete('set null');
             $table->foreign('service_id')->references('id')->on('services')->onDelete('set null');
             $table->foreign('payment_method_id')->references('id')->on('payment_methods')->onDelete('set null');

@@ -11,9 +11,12 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('roles', function (Blueprint $table) {
+        Schema::create('payment_dates', function (Blueprint $table) {
             $table->id();
-            $table->string('rol')->unique();
+            $table->foreignId('client_id')->constrained('clients')->onDelete('cascade');
+            $table->date('payment_due_date');
+            $table->decimal('amount_due', 15, 2);
+            $table->string('status');
             $table->timestamps();
         });
     }
@@ -23,6 +26,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('roles');
+        Schema::dropIfExists('payment_dates');
     }
 };

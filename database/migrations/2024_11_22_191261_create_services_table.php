@@ -13,12 +13,11 @@ return new class extends Migration
     {
         Schema::create('services', function (Blueprint $table) {
             $table->id();
+            $table->unsignedBigInteger('personalized_id')->nullable();
+            $table->foreign('personalized_id')->references('id')->on('personalizeds')->onDelete('set null');
             
-            $table->unsignedBigInteger('campaña_personalizada_id')->nullable();
-            $table->foreign('campaña_personalizada_id')->references('id')->on('campañas_personalizadas')->onDelete('set null');
-            
-            $table->unsignedBigInteger('plane_id')->nullable();
-            $table->foreign('plane_id')->references('id')->on('planes')->onDelete('set null');
+            $table->unsignedBigInteger('plan_id')->nullable();
+            $table->foreign('plan_id')->references('id')->on('plans')->onDelete('set null');
             $table->timestamps();
         });
     }

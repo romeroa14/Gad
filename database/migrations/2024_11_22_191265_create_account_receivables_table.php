@@ -11,15 +11,14 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('AccountPayables', function (Blueprint $table) {
+        Schema::create('account_receivables', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('supplier_id')->nullable;
-            $table->foreign('supplier_id')->references('id')->on('suppliers')->onDelete('set null');
+            $table->unsignedBigInteger('client_id')->nullable;
+            $table->foreign('client_id')->references('id')->on('clients')->onDelete('set null');
             $table->date('date_creation');
             $table->date('date_expiration');
-            $table->enum('account_status', ['pending', 'paid', 'due'])->default('pendiente');;
             $table->decimal('amount', 15, 2);
-            $table->string('status');
+            $table->string('status'); // Pendiente, Pagado
             $table->timestamps();
         });
     }
@@ -29,6 +28,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('debts');
+        Schema::dropIfExists('account_receivables');
     }
 };

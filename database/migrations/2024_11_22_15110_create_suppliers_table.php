@@ -11,13 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('account_receivables', function (Blueprint $table) {
+        Schema::create('suppliers', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('client_id')->nullable;
-            $table->foreign('client_id')->references('id')->on('clients')->onDelete('set null');
-            $table->date('date_creation');
-            $table->date('date_expiration');
-            $table->integer('amount');
+            $table->string('name');
+            $table->string('contact_info')->nullable();
+            $table->string('address')->nullable();
             $table->timestamps();
         });
     }
@@ -27,6 +25,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('account_receivables');
+        Schema::dropIfExists('suppliers');
     }
 };
