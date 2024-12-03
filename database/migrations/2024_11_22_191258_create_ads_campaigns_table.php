@@ -14,6 +14,7 @@ return new class extends Migration
         Schema::create('ads_campaigns', function (Blueprint $table) {
             $table->id();
             $table->string('name');
+            $table->foreignId('client_id')->constrained('clients')->onDelete('cascade');
             $table->foreignId('plan_id')->constrained('plans')->onDelete('cascade');
             $table->date('start_date');
             $table->date('end_date');

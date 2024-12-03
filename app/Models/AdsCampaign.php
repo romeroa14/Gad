@@ -9,6 +9,17 @@ class AdsCampaign extends Model
 {
     use HasFactory;
 
+    protected $fillable = [
+        'name',
+        'client_id',
+        'plan_id',
+        'start_date',
+        'end_date',
+        'budget',
+        'actual_cost',
+        'status',
+    ];
+
     public function client()
     {
         return $this->belongsTo(Client::class);
