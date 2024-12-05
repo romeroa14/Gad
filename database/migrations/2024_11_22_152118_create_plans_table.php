@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('plans', function (Blueprint $table) {
             $table->id();
-            $table->string('daily_investment');
+            $table->enum('daily_investment', ['1$ diarios', '2$ diarios', '3$ diarios']);
             $table->string('duration');
             $table->string('scope');
             $table->decimal('investment', 15, 2);

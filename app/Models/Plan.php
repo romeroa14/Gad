@@ -9,6 +9,15 @@ class Plan extends Model
 {
     use HasFactory;
 
+    protected $fillable = [
+        'daily_investment',
+        'duration',
+        'scope',
+        'investment',
+        'price',
+        
+    ];
+
     public function adsCampaigns()
     {
         return $this->hasMany(AdsCampaign::class);

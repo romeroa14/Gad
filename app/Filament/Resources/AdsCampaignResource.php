@@ -20,6 +20,7 @@ class AdsCampaignResource extends Resource
     protected static ?string $navigationIcon = 'heroicon-o-folder';
     protected static ?string $navigationLabel = 'Campañas Publicitarias';
     protected static ?string $pluralModelLabel = 'Campañas Publicitarias';
+    protected static ?int $navigationSort = 2;
 
     public static function form(Form $form): Form
     {
@@ -33,7 +34,7 @@ class AdsCampaignResource extends Resource
                 ->label('Cliente')
                 ->required(),
             Forms\Components\Select::make('plan_id')
-                ->relationship('plan', 'name')
+                ->relationship('plan', 'daily_investment')
                 ->label('Plan')
                 ->nullable(),
             Forms\Components\DatePicker::make('start_date')
@@ -66,7 +67,7 @@ class AdsCampaignResource extends Resource
         ->columns([
             Tables\Columns\TextColumn::make('name')->label('Nombre'),
             Tables\Columns\TextColumn::make('client.name')->label('Cliente'),
-            Tables\Columns\TextColumn::make('plan.name')->label('Plan'),
+            Tables\Columns\TextColumn::make('plan.daily_investment')->label('Plan'),
             Tables\Columns\TextColumn::make('start_date')->label('Inicio'),
             Tables\Columns\TextColumn::make('end_date')->label('Fin'),
             Tables\Columns\TextColumn::make('budget')->label('Presupuesto')->money('usd', true),
