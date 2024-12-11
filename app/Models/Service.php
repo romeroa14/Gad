@@ -9,8 +9,8 @@ class Service extends Model
 {
     use HasFactory;
 
-    public function plan()
+    public function serviceable()
     {
-        return $this->belongsTo(Plan::class);
+        return $this->morphTo();
     }
 }

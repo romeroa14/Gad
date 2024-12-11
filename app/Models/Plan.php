@@ -9,6 +9,11 @@ class Plan extends Model
 {
     use HasFactory;
 
+    public function getName()
+    {
+        return $this->name ?? 'Plan #' . $this->daily_investment . ' ' . $this->duration;
+    }
+
     protected $fillable = [
         'daily_investment',
         'duration',
@@ -25,6 +30,6 @@ class Plan extends Model
 
     public function services()
     {
-        return $this->hasMany(Service::class);
+        return $this->morphMany(Service::class, 'serviceable');
     }
 }

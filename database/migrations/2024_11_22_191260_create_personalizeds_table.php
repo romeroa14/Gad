@@ -15,6 +15,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('client_id')->constrained('clients')->onDelete('cascade');
             $table->foreignId('ads_campaign_id')->constrained('ads_campaigns')->onDelete('cascade');
+            $table->string('description');
             $table->decimal('fees', 15, 2);
             $table->integer('duration'); // Duración en días/semanas
             $table->timestamps();

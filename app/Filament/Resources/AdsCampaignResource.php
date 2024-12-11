@@ -12,6 +12,7 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
+use App\Services\MetaAdsService;
 
 class AdsCampaignResource extends Resource
 {
@@ -25,40 +26,57 @@ class AdsCampaignResource extends Resource
     public static function form(Form $form): Form
     {
         return $form
-        ->schema([
-            Forms\Components\TextInput::make('name')
-                ->required()
-                ->label('Nombre de la Campaña'),
-            Forms\Components\Select::make('client_id')
-                ->relationship('client', 'name')
-                ->label('Cliente')
-                ->required(),
-            Forms\Components\Select::make('plan_id')
-                ->relationship('plan', 'daily_investment')
-                ->label('Plan')
-                ->nullable(),
-            Forms\Components\DatePicker::make('start_date')
-                ->required()
-                ->label('Fecha de Inicio'),
-            Forms\Components\DatePicker::make('end_date')
-                ->required()
-                ->label('Fecha de Fin'),
-            Forms\Components\TextInput::make('budget')
-                ->numeric()
-                ->required()
-                ->label('Presupuesto'),
-            Forms\Components\TextInput::make('actual_cost')
-                ->numeric()
-                ->label('Costo Real'),
-            Forms\Components\Select::make('status')
-                ->options([
-                    'Active' => 'Activa',
-                    'Paused' => 'Pausada',
-                    'Finished' => 'Finalizada',
-                ])
-                ->required()
-                ->label('Estado'),
-        ]);
+            ->schema([
+                Forms\Components\TextInput::make('name')
+                    ->label('Nombre de la Campaña')
+                    ->required(),
+                
+                Forms\Components\Select::make('client_id')
+                    ->label('Cliente')
+                    ->relationship('client', 'name')
+                    ->searchable()
+                    ->required(),
+
+                Forms\Components\Select::make('plan')
+                    ->label('Plan')
+                    ->options([
+                        'basic' => 'Básico',
+                        'premium' => 'Premium',
+                        'enterprise' => 'Empresarial'
+                    ])
+                    ->required(),
+
+                Forms\Components\DatePicker::make('start_date')
+                    ->label('Fecha de Inicio')
+                    ->required(),
+
+                Forms\Components\DatePicker::make('end_date')
+                    ->label('Fecha de Fin')
+                    ->required(),
+
+                Forms\Components\TextInput::make('budget')
+                    ->label('Presupuesto')
+                    ->numeric()
+                    ->required(),
+
+                Forms\Components\TextInput::make('meta_campaign_id')
+                    ->label('ID de Campaña en Meta')
+                    ->helperText('Opcional - Para sincronización con Meta Ads')
+                    ->rules(['nullable', function($attribute, $value, $fail) {
+                        if ($value && !(new MetaAdsService())->validateCampaignExists($value)) {
+                            $fail('La campaña no existe en Meta Ads');
+                        }
+                    }]),
+
+                Forms\Components\Select::make('status')
+                    ->label('Estado')
+                    ->options([
+                        'active' => 'Activa',
+                        'paused' => 'Pausada',
+                        'completed' => 'Completada'
+                    ])
+                    ->required(),
+            ]);
     }
 
     public static function table(Table $table): Table
