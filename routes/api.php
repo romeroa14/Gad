@@ -24,4 +24,4 @@ Route::middleware([
     })->name('dashboard');
 });
 
-Route::post('webhook/meta', [MetaWebhookController::class, 'handle']); 
+// Route::post('webhook/meta', [MetaWebhookController::class, 'handle']); 

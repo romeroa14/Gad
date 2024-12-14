@@ -113,14 +113,7 @@
     @if (! $isLoaded)
         wire:init="loadTable"
     @endif
-    x-ignore
-    @if (FilamentView::hasSpaMode())
-        ax-load="visible"
-    @else
-        ax-load
-    @endif
-    ax-load-src="{{ \Filament\Support\Facades\FilamentAsset::getAlpineComponentSrc('table', 'filament/tables') }}"
-    x-data="table"
+    x-data="tableComponent"
     @class([
         'fi-ta',
         'animate-pulse' => $records === null,

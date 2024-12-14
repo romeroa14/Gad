@@ -12,14 +12,16 @@ class MetaAdsTest extends TestCase
         $metaAds = new MetaAdsService();
         
         try {
+            // Desencriptar el token si es necesario
+            $token = decrypt(config('services.meta.access_token'));
+            
             $account = $metaAds->getAdAccount();
             $this->assertNotNull($account);
             
-            // Intenta obtener campañas
             $campaigns = $account->getCampaigns();
             $this->assertNotNull($campaigns);
             
-            echo "Conexión exitosa. Campañas encontradas: " . count($campaigns);
+            $this->assertTrue(count($campaigns) >= 0, "Conexión exitosa. Campañas encontradas: " . count($campaigns));
         } catch (\Exception $e) {
             $this->fail("Error de conexión: " . $e->getMessage());
         }

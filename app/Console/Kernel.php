@@ -19,6 +19,7 @@ class Kernel extends ConsoleKernel
     protected function schedule(Schedule $schedule)
     {
         $schedule->job(new SyncMetaAdsCampaigns)->hourly();
+        $schedule->command('refresh:meta-token')->cron('0 0 */50 * *');
     }
 
     /**

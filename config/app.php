@@ -95,6 +95,12 @@ return [
     |
     */
 
+    'aliases' => [
+       // ... otras alias ...
+       'Encrypter' => Illuminate\Encryption\Encrypter::class,
+       'Crypt' => Illuminate\Support\Facades\Crypt::class,
+   ],
+
     'cipher' => 'AES-256-CBC',
 
     'key' => env('APP_KEY'),
@@ -122,5 +128,10 @@ return [
         'driver' => env('APP_MAINTENANCE_DRIVER', 'file'),
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
+
+    // 'providers' => [
+    //     // ...
+    //     Illuminate\Encryption\EncryptionServiceProvider::class,
+    // ],
 
 ];
