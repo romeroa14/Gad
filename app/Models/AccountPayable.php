@@ -13,4 +13,9 @@ class AccountPayable extends Model
     {
         return $this->belongsTo(Supplier::class);
     }
+
+    public function finance()
+    {
+        return $this->belongsTo(Finance::class);
+    }
 }

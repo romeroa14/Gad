@@ -3,7 +3,7 @@
         'name' => 'laravel/laravel',
         'pretty_version' => 'dev-main',
         'version' => 'dev-main',
-        'reference' => 'dc889c112e0deff156fb53fed193edbc55ddb96b',
+        'reference' => '6f24d539cc435e4c0ebc32b4fabf8a384711ca60',
         'type' => 'project',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
@@ -93,6 +93,15 @@
             'install_path' => __DIR__ . '/../dflydev/dot-access-data',
             'aliases' => array(),
             'dev_requirement' => false,
+        ),
+        'dipeshsukhia/laravel-country-state-city-data' => array(
+            'pretty_version' => 'v2.0.3',
+            'version' => '2.0.3.0',
+            'reference' => '7f65a1d9867b5974269059b35092673fa25daa20',
+            'type' => 'library',
+            'install_path' => __DIR__ . '/../dipeshsukhia/laravel-country-state-city-data',
+            'aliases' => array(),
+            'dev_requirement' => true,
         ),
         'doctrine/dbal' => array(
             'pretty_version' => '4.2.1',
@@ -532,7 +541,7 @@
         'laravel/laravel' => array(
             'pretty_version' => 'dev-main',
             'version' => 'dev-main',
-            'reference' => 'dc889c112e0deff156fb53fed193edbc55ddb96b',
+            'reference' => '6f24d539cc435e4c0ebc32b4fabf8a384711ca60',
             'type' => 'project',
             'install_path' => __DIR__ . '/../../',
             'aliases' => array(),

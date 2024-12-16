@@ -9,6 +9,18 @@ class Client extends Model
 {
     use HasFactory;
 
+    protected $fillable = [
+        'name',
+        'last_name',
+        'email',
+        'phone',
+        'business',
+        'country_id',
+        'state_id',
+        'city_id',
+        'address',
+    ];
+
     public function adsCampaigns()
     {
         return $this->hasMany(AdsCampaign::class);
@@ -22,5 +34,20 @@ class Client extends Model
     public function accountReceivables()
     {
         return $this->hasMany(AccountReceivable::class);
+    }
+
+    public function country()
+    {
+        return $this->belongsTo(Country::class);
+    }
+
+    public function state()
+    {
+        return $this->belongsTo(State::class);
+    }
+
+    public function city()
+    {
+        return $this->belongsTo(City::class);
     }
 }

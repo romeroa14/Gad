@@ -13,4 +13,14 @@ class Bill extends Model
     {
         return $this->belongsTo(Client::class);
     }
+
+    public function service()
+    {
+        return $this->belongsTo(Service::class);
+    }
+
+    public function paymentMethod()
+    {
+        return $this->belongsTo(PaymentMethod::class);
+    }
 }
