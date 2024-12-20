@@ -1,10 +1,11 @@
 <?php
 
-namespace App\Services\FacebookAds;
+namespace App\Services;
 
-use FacebookAds\Api;
-use FacebookAds\Logger\CurlLogger;
 use FacebookAds\Object\AdAccount;
+use FacebookAds\Object\Campaign;
+use FacebookAds\Api;
+use Illuminate\Support\Facades\Log;
 
 class FacebookAdsService
 {
@@ -13,26 +14,49 @@ class FacebookAdsService
 
     public function __construct()
     {
-        $this->init();
+        $this->api = app('facebook-ads-api');
+        $this->adAccount = new AdAccount('act_' . config('263840399179369'));
     }
 
-    protected function init()
+    // Método de prueba para obtener campañas
+    public function getCampaigns()
     {
-        Api::init(
-            config('facebook-ads.app_id'),
-            config('facebook-ads.app_secret'),
-            config('facebook-ads.access_token')
-        );
-
-        if (config('app.debug')) {
-            Api::instance()->setLogger(new CurlLogger());
+        try {
+            $campaigns = $this->adAccount->getCampaigns();
+            return $campaigns->map(function($campaign) {
+                return [
+                    'id' => $campaign->id,
+                    'name' => $campaign->name,
+                    'status' => $campaign->status,
+                    'objective' => $campaign->objective,
+                ];
+            });
+        } catch (\Exception $e) {
+            Log::error('Error al obtener campañas: ' . $e->getMessage());
+            throw $e;
         }
-
-        $this->adAccount = new AdAccount('act_' . config('facebook-ads.account_id'));
     }
 
-    public function getAdAccount()
+    // Método para obtener insights básicos
+    public function getAccountInsights()
     {
-        return $this->adAccount;
+        try {
+            $insights = $this->adAccount->getInsights([
+                'fields' => [
+                    'spend',
+                    'impressions',
+                    'clicks',
+                    'reach'
+                ],
+                'time_range' => [
+                    'since' => date('Y-m-d', strtotime('-30 days')),
+                    'until' => date('Y-m-d'),
+                ],
+            ]);
+            return $insights->getResponse()->getContent();
+        } catch (\Exception $e) {
+            Log::error('Error al obtener insights: ' . $e->getMessage());
+            throw $e;
+        }
     }
 }

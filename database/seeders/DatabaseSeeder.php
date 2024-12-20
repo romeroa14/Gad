@@ -20,29 +20,25 @@ class DatabaseSeeder extends Seeder
         // Asegurarse que los países, estados y ciudades estén cargados primero
         $this->call(CountryStateCityTableSeeder::class);
 
-        // Obtener el ID de Venezuela y verificar que existe
-        // $venezuelaId = DB::table('countries')
-        //     ->where('name', 'Venezuela')
-        //     ->value('id');
-
-        // if (!$venezuelaId) {
-        //     throw new \Exception('Venezuela not found in countries table');
-        // }
-
-        // // Debug line - you can remove after fixing
-        // FacadesLog::info('Venezuela ID: ' . $venezuelaId);
-
-        // Obtener un estado aleatorio de Venezuela
+        // Obtener el ID de Venezuela (237) y verificar que existe
         $randomStateId = DB::table('states')
             ->where('country_id', 237)
             ->inRandomOrder()
-            ->value('id');
+            ->first()->id;
+
+        if (!$randomStateId) {
+            throw new \Exception('No se encontró el estado');
+        }
 
         // Obtener una ciudad aleatoria del estado seleccionado
         $randomCityId = DB::table('cities')
             ->where('state_id', $randomStateId)
             ->inRandomOrder()
-            ->value('id');
+            ->first();
+
+        if (!$randomCityId) {
+            throw new \Exception('No se encontró la ciudad para el estado ID: ' . $randomStateId);
+        }
 
         // Crear un cliente de prueba
         $client = Client::firstOrCreate([
@@ -54,7 +50,7 @@ class DatabaseSeeder extends Seeder
             'business' => 'Negocio de Prueba',
             'country_id' => 237,
             'state_id' => $randomStateId,
-            'city_id' => $randomCityId,
+            'city_id' => $randomCityId->id, // Asegurarse de usar el ID de la ciudad
             'address' => 'Dirección de Prueba',
         ]);
 
