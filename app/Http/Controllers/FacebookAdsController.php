@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Services\FacebookAds\FacebookAdsService;
 use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
 
 class FacebookAdsController extends Controller
 {
@@ -14,18 +15,10 @@ class FacebookAdsController extends Controller
         $this->facebookAdsService = $facebookAdsService;
     }
 
-    public function getFriends()
-    {
-        $facebookService = new FacebookAdsService();
-        $response = $facebookService->makeRequest('friends', '10232575857351584');
-        return response()->json($response);
-    }
-
-    public function testConnection()
+    public function testConnection(): JsonResponse
     {
         try {
-            $facebookService = new FacebookAdsService();
-            $campaigns = $facebookService->getCampaigns();
+            $campaigns = $this->facebookAdsService->getCampaigns();
             return response()->json([
                 'success' => true,
                 'campaigns' => $campaigns
@@ -38,12 +31,11 @@ class FacebookAdsController extends Controller
         }
     }
 
-    public function getInsights()
+    public function getInsights(): JsonResponse
     {
         try {
             $insights = $this->facebookAdsService->getAccountInsights();
             
-            // Verificar si hay error en la respuesta
             if (isset($insights['error'])) {
                 return response()->json([
                     'success' => false,
@@ -63,19 +55,12 @@ class FacebookAdsController extends Controller
         }
     }
 
-    public function testToken()
+    public function debug(): JsonResponse
     {
-        try {
-            $result = $this->facebookAdsService->testToken();
-            return response()->json([
-                'success' => true,
-                'data' => $result
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage()
-            ], 500);
-        }
+        return response()->json([
+            'from_env' => env('FACEBOOK_AD_ACCOUNT_ID'),
+            'from_config' => config('services.facebook.ad_account_id'),
+            'all_config' => config('services.facebook')
+        ]);
     }
 } 

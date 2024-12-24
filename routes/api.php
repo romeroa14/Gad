@@ -12,5 +12,4 @@ Route::prefix('facebook')->group(function () {
     Route::get('/test', [FacebookAdsController::class, 'testConnection']);
     Route::get('/insights', [FacebookAdsController::class, 'getInsights']);
     Route::get('/friends', [FacebookAdsController::class, 'getFriends']);
-    Route::get('/test-token', [FacebookAdsController::class, 'testToken']);
 });
