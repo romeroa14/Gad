@@ -2,15 +2,23 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Reporte extends Model
 {
-    use HasFactory;
+    protected $fillable = [
+        'advertising_account_id',
+        'date_range',
+        'metrics'
+    ];
 
-    public function adsCampaign()
+    protected $casts = [
+        'metrics' => 'array'
+    ];
+
+    public function advertisingAccount(): BelongsTo
     {
-        return $this->belongsTo(AdsCampaign::class);
+        return $this->belongsTo(AdvertisingAccount::class);
     }
 }
