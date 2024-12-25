@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
-use App\Models\AdvertisingAccount;
 use Laravel\Socialite\Facades\Socialite;
 use Illuminate\Support\Facades\Auth;
 use Exception;
@@ -12,7 +11,7 @@ class FacebookAuthController extends Controller
 {
     public function redirect()
     {
-        return Socialite::driver('facebook')
+        return Socialite::with('facebook')
             ->scopes([
                 'ads_management',
                 'ads_read',
@@ -29,9 +28,7 @@ class FacebookAuthController extends Controller
             $facebookUser = Socialite::driver('facebook')->user();
             
             $user = User::updateOrCreate(
-                [
-                    'facebook_id' => $facebookUser->id,
-                ],
+                ['facebook_id' => $facebookUser->id],
                 [
                     'name' => $facebookUser->name,
                     'email' => $facebookUser->email,
@@ -41,41 +38,13 @@ class FacebookAuthController extends Controller
 
             Auth::login($user);
 
-            // Sincronizar cuentas publicitarias
-            $this->syncAdvertisingAccounts($user);
+            // Redirigir siempre al dashboard
+            return redirect()->route('filament.pages.dashboard');
 
-            return redirect()->route('filament.pages.dashboard')
-                ->with('success', 'Conexión con Facebook exitosa');
-                
         } catch (Exception $e) {
-            return redirect()->route('filament.pages.dashboard')
+            return redirect()
+                ->route('filament.pages.dashboard')
                 ->with('error', 'Error al conectar con Facebook: ' . $e->getMessage());
-        }
-    }
-
-    protected function syncAdvertisingAccounts($user)
-    {
-        try {
-            $response = Socialite::driver('facebook')
-                ->stateless()
-                ->userFromToken($user->facebook_access_token);
-
-            $accounts = $response->user['adaccounts']['data'] ?? [];
-
-            foreach ($accounts as $account) {
-                AdvertisingAccount::updateOrCreate(
-                    [
-                        'account_id' => $account['id'],
-                        'user_id' => $user->id,
-                    ],
-                    [
-                        'name' => $account['name'],
-                        'status' => 'active',
-                    ]
-                );
-            }
-        } catch (Exception $e) {
-            report($e);
         }
     }
 } 

@@ -2,14 +2,14 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
+use App\Models\Traits\HasFacebookAccount;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
 {
-    use HasApiTokens, HasFactory, Notifiable;
+    use HasApiTokens, HasFacebookAccount, Notifiable;
 
     protected $fillable = [
         'name',
@@ -29,21 +29,5 @@ class User extends Authenticatable
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
     ];
-
-    /**
-     * Verifica si el usuario tiene una cuenta de Facebook conectada
-     */
-    public function hasConnectedFacebookAccount(): bool
-    {
-        return !empty($this->facebook_access_token) && !empty($this->facebook_id);
-    }
-
-    /**
-     * Relación con las cuentas publicitarias
-     */
-    public function advertisingAccounts()
-    {
-        return $this->hasMany(AdvertisingAccount::class);
-    }
 }
 

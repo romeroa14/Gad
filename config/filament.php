@@ -1,5 +1,18 @@
 <?php
+
 return [
+    'default_navigation_group' => null,
+    'navigation' => [
+        'groups' => [],
+        'items' => [
+            'dashboard' => [
+                'label' => 'Inicio',
+                'icon' => 'heroicon-o-home',
+                'sort' => -2,
+                'isActiveWhen' => fn (): bool => request()->routeIs('filament.pages.dashboard'),
+            ],
+        ],
+    ],
     'auth' => [
         'guard' => env('FILAMENT_AUTH_GUARD', 'web'),
         'pages' => [

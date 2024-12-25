@@ -5,4 +5,5 @@ return [
     App\Providers\AuthServiceProvider::class,
     App\Providers\Filament\AdminPanelProvider::class,
     App\Providers\FacebookServiceProvider::class,
+    Laravel\Socialite\SocialiteServiceProvider::class,
 ];
