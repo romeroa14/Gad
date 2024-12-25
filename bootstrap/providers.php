@@ -6,4 +6,5 @@ return [
     App\Providers\Filament\AdminPanelProvider::class,
     App\Providers\FacebookServiceProvider::class,
     Laravel\Socialite\SocialiteServiceProvider::class,
+    App\Providers\RouteServiceProvider::class,
 ];
