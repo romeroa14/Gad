@@ -3,19 +3,20 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class AdvertisingAccount extends Model
 {
     protected $fillable = [
         'user_id',
-        'name',
         'account_id',
-        'access_token'
+        'name',
+        'status',
+        'currency',
+        'timezone'
     ];
 
-    public function reportes(): HasMany
+    public function user()
     {
-        return $this->hasMany(Reporte::class);
+        return $this->belongsTo(User::class);
     }
 } 

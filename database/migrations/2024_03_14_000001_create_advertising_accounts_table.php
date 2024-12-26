@@ -10,17 +10,13 @@ return new class extends Migration
     {
         Schema::create('advertising_accounts', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('user_id')
-                ->constrained()
-                ->onDelete('cascade');
+            $table->foreignId('user_id')->constrained()->onDelete('cascade');
+            $table->string('account_id');
             $table->string('name');
-            $table->string('account_id')->unique();
-            $table->text('access_token');
-            $table->enum('status', ['active', 'inactive'])->default('active');
+            $table->integer('status');
+            $table->string('currency');
+            $table->string('timezone');
             $table->timestamps();
-            
-            $table->index('account_id');
-            $table->index(['user_id', 'status']);
         });
     }
 

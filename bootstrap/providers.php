@@ -7,4 +7,5 @@ return [
     App\Providers\FacebookServiceProvider::class,
     Laravel\Socialite\SocialiteServiceProvider::class,
     App\Providers\RouteServiceProvider::class,
+    Filament\FilamentServiceProvider::class,
 ];

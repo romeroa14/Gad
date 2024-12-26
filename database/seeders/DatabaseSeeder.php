@@ -12,6 +12,8 @@ use Database\Seeders\PlanSeeder;
 use Illuminate\Container\Attributes\Log;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log as FacadesLog;
+use App\Models\State;
+use App\Models\City;
 
 class DatabaseSeeder extends Seeder
 {
@@ -23,8 +25,8 @@ class DatabaseSeeder extends Seeder
         // Obtener el ID de Venezuela (237) y verificar que existe
         $randomStateId = DB::table('states')
             ->where('country_id', 237)
-            ->inRandomOrder()
-            ->first()->id;
+            ->pluck('id')
+            ->first();
 
         if (!$randomStateId) {
             throw new \Exception('No se encontró el estado');
@@ -37,7 +39,7 @@ class DatabaseSeeder extends Seeder
             ->first();
 
         if (!$randomCityId) {
-            throw new \Exception('No se encontró la ciudad para el estado ID: ' . $randomStateId);
+            $randomCityId = City::first();
         }
 
         // Crear un cliente de prueba
