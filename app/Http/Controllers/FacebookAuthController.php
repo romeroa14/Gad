@@ -14,7 +14,7 @@ class FacebookAuthController extends Controller
     public function redirect()
     {
         Log::info('Iniciando redirección a Facebook');
-        return Socialite::driver('facebook')
+        return Socialite::with('facebook')
             ->scopes([
                 'ads_management',
                 'ads_read',
