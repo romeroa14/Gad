@@ -30,23 +30,18 @@ class FacebookAuthController extends Controller
         Log::info('Iniciando callback de Facebook');
         try {
             $facebookUser = Socialite::driver('facebook')->user();
-
-            Log::info('Usuario de Facebook obtenido exitosamente');
-
-            // Log para debug
-            Log::info('Facebook callback data:', [
-                'id' => $facebookUser->getId(),
-                'name' => $facebookUser->getName(),
-                'email' => $facebookUser->getEmail(),
-                'token' => $facebookUser->token,
-                'expiresIn' => $facebookUser->expiresIn,
-            ]);
             
+            // Agregar más logging para debug
+            Log::info('Respuesta completa de Facebook:', [
+                'user' => $facebookUser,
+                'token_exists' => !empty($facebookUser->token),
+            ]);
+
             // Primero buscamos por email
             $user = User::where('email', $facebookUser->getEmail())->first();
             
             if ($user) {
-                // Si el usuario existe, solo actualizamos los datos de Facebook
+                Log::info('Actualizando usuario existente:', ['user_id' => $user->id]);
                 $user->update([
                     'facebook_id' => $facebookUser->getId(),
                     'facebook_access_token' => $facebookUser->token,
@@ -63,14 +58,26 @@ class FacebookAuthController extends Controller
                 ]);
             }
 
-            // Obtener cuentas publicitarias
+            // Verificar token antes de hacer la petición
+            if (empty($facebookUser->token)) {
+                throw new Exception('No se recibió token de acceso de Facebook');
+            }
+
+            // Mejorar la petición de cuentas publicitarias
             $response = Http::get('https://graph.facebook.com/v19.0/me/adaccounts', [
                 'access_token' => $facebookUser->token,
-                'fields' => 'name,account_status,currency,timezone_name'
+                'fields' => 'name,account_status,currency,timezone_name,id'
+            ]);
+
+            Log::info('Respuesta de cuentas publicitarias:', [
+                'status' => $response->status(),
+                'body' => $response->json(),
             ]);
 
             if ($response->successful()) {
                 $adAccounts = $response->json('data', []);
+                Log::info('Cuentas publicitarias encontradas:', ['count' => count($adAccounts)]);
+                
                 foreach ($adAccounts as $account) {
                     $user->advertisingAccounts()->updateOrCreate(
                         ['account_id' => $account['id']],
@@ -82,13 +89,23 @@ class FacebookAuthController extends Controller
                         ]
                     );
                 }
+            } else {
+                Log::error('Error al obtener cuentas publicitarias:', [
+                    'status' => $response->status(),
+                    'error' => $response->json()
+                ]);
             }
+
+            Auth::login($user); // Importante: asegurarse que el usuario esté autenticado
 
             return redirect('/admin')->with('success', 'Cuenta de Facebook conectada exitosamente');
 
         } catch (\Exception $e) {
-            Log::error('Facebook callback error: ' . $e->getMessage());
-            return redirect('/admin')->with('error', 'Error al conectar con Facebook');
+            Log::error('Facebook callback error:', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return redirect('/admin')->with('error', 'Error al conectar con Facebook: ' . $e->getMessage());
         }
     }
 }

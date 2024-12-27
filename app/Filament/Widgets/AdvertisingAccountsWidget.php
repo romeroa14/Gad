@@ -4,19 +4,19 @@ namespace App\Filament\Widgets;
 
 use Filament\Widgets\Widget;
 use Illuminate\Support\Facades\Auth;
-use Livewire\Attributes\On;
 
 class AdvertisingAccountsWidget extends Widget
 {
     protected static string $view = 'filament.widgets.advertising-accounts-widget';
-    
     protected int | string | array $columnSpan = 'full';
-
+    
     public ?string $selectedAccount = null;
+    public bool $isConnected = false;
 
     public function mount()
     {
         $this->selectedAccount = session('selected_ad_account');
+        $this->isConnected = (bool) Auth::user()->facebook_access_token;
     }
 
     public function getAdvertisingAccounts()
@@ -24,10 +24,10 @@ class AdvertisingAccountsWidget extends Widget
         return Auth::user()->advertisingAccounts;
     }
 
-    public function selectAccount($accountId)
+    public function getConnectionStatus()
     {
-        $this->selectedAccount = $accountId;
-        session(['selected_ad_account' => $accountId]);
-        $this->dispatch('advertising-account-selected', accountId: $accountId);
+        return $this->isConnected ? 'Conectado' : 'No Conectado';
     }
+
+   
 } 
