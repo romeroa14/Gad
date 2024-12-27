@@ -4,7 +4,7 @@
             color="danger"
             icon="heroicon-m-x-circle"
             wire:click="disconnect"
-            wire:confirm="¿Estás seguro que deseas desconectar tu cuenta de Facebook? Se eliminarán todas las cuentas publicitarias vinculadas."
+            wire:confirm="¿Estás seguro que deseas desconectar tu cuenta de Facebook?"
         >
             Desconectar cuenta de Facebook
         </x-filament::button>
