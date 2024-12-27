@@ -21,10 +21,10 @@ class Dashboard extends BaseDashboard
         /** @var User|null $user */
         $user = Auth::user();
 
-        if (!$user) {
+        if (!$user?->facebook_access_token) {
             return [
                 Action::make('facebook_login')
-                    ->label('Iniciar Sesión con Facebook')
+                    ->label('Conectar con Facebook')
                     ->icon('heroicon-o-login')
                     ->size(ActionSize::Large)
                     ->color('primary')
@@ -37,15 +37,14 @@ class Dashboard extends BaseDashboard
                 ->label('Seleccionar Cuenta Publicitaria')
                 ->icon('heroicon-o-building-office')
                 ->size(ActionSize::Large)
-                ->url(route('filament.resources.advertising-accounts.index'))
-                ->visible($user->hasConnectedFacebookAccount()),
+                ->url(route('filament.resources.advertising-accounts.index')),
 
             Action::make('logout')
                 ->label('Cerrar Sesión')
                 ->icon('heroicon-o-logout')
                 ->size(ActionSize::Large)
                 ->color('danger')
-                ->url(route('logout'))
+                ->url(route('facebook.disconnect'))
                 ->visible(true),
         ];
     }
@@ -54,7 +53,7 @@ class Dashboard extends BaseDashboard
     {
         return [
             ConnectedAccountsOverview::class,
-            AdvertisingAccountsSelector::class,
+            \App\Filament\Widgets\AdvertisingAccountsWidget::class,
         ];
     }
 } 
