@@ -25,16 +25,7 @@ class ConnectedAccountsOverview extends BaseWidget
 
         }
         return [
-            Stat::make('Estado', 'No autenticado')
-                ->color('danger')
-                ->icon('heroicon-o-x-circle'),
-
-            Action::make('facebook_login')
-                ->label('Iniciar Sesión con Facebook')
-                ->icon('heroicon-o-users')
-                ->size(ActionSize::Large)
-                ->color('primary')
-                ->url(route('facebook.login')),
+            
        
             Stat::make('Estado de Conexión', $user->hasConnectedFacebookAccount() ? 'Conectado' : 'No Conectado')
                 ->description('Facebook Business')

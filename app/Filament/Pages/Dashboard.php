@@ -7,7 +7,7 @@ use Filament\Pages\Dashboard as BaseDashboard;
 use Filament\Actions\Action;
 use Filament\Support\Enums\ActionSize;
 use App\Filament\Widgets\ConnectedAccountsOverview;
-use App\Filament\Widgets\AdvertisingAccountsSelector;
+use App\Filament\Widgets\AdvertisingAccountsWidget;
 use Illuminate\Support\Facades\Auth;
 
 class Dashboard extends BaseDashboard
@@ -21,16 +21,7 @@ class Dashboard extends BaseDashboard
         /** @var User|null $user */
         $user = Auth::user();
 
-        if (!$user) {
-            return [
-                Action::make('facebook_login')
-                    ->label('Iniciar Sesión con Facebook')
-                    ->icon('heroicon-o-login')
-                    ->size(ActionSize::Large)
-                    ->color('primary')
-                    ->url(route('facebook.login')),
-            ];
-        }
+        
 
         return [
             Action::make('select_ad_account')
@@ -54,7 +45,7 @@ class Dashboard extends BaseDashboard
     {
         return [
             ConnectedAccountsOverview::class,
-            AdvertisingAccountsSelector::class,
+            AdvertisingAccountsWidget::class,
         ];
     }
 } 
