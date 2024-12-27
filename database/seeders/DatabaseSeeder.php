@@ -60,26 +60,26 @@ class DatabaseSeeder extends Seeder
         $this->call(PlanSeeder::class);
 
         // Crear una campaña de anuncios de prueba
-        $adsCampaign = AdsCampaign::firstOrCreate([
-            'name' => 'Campaña de Prueba',
-            'client_id' => $client->id,
-            'plan_id' => 1, // Asegúrate de que este plan exista
-            'start_date' => now(),
-            'end_date' => now()->addDays(30),
-            'budget' => 100.00,
-            'status' => 'Active',
-        ]);
+        // $adsCampaign = AdsCampaign::firstOrCreate([
+        //     'name' => 'Campaña de Prueba',
+        //     'client_id' => $client->id,
+        //     'plan_id' => 1, // Asegúrate de que este plan exista
+        //     'start_date' => now(),
+        //     'end_date' => now()->addDays(30),
+        //     'budget' => 100.00,
+        //     'status' => 'Active',
+        // ]);
 
         
 
         // Crear servicios personalizados
-        $personalized = Personalized::create([
-            'client_id' => $client->id,
-            'ads_campaign_id' => $adsCampaign->id,
-            'description' => 'Servicio Personalizado',
-            'fees' => 100.00,
-            'duration' => 30,
-        ]);
+        // $personalized = Personalized::create([
+        //     'client_id' => $client->id,
+        //     'ads_campaign_id' => $adsCampaign->id,
+        //     'description' => 'Servicio Personalizado',
+        //     'fees' => 100.00,
+        //     'duration' => 30,
+        // ]);
 
         // Crear servicios relacionados
         $plans = Plan::all();
@@ -91,11 +91,11 @@ class DatabaseSeeder extends Seeder
             ]);
         }
 
-        Service::create([
-            'serviceable_id' => $personalized->id,
-            'serviceable_type' => Personalized::class,
-            'name' => 'Servicio Personalizado',
-        ]);
+        // Service::create([
+        //     'serviceable_id' => $personalized->id,
+        //     'serviceable_type' => Personalized::class,
+        //     'name' => 'Servicio Personalizado',
+        // ]);
 
         User::factory()->create([
             'name' => 'Test User',

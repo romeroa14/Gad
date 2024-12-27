@@ -15,7 +15,7 @@ return new class extends Migration
             $table->id();
             $table->string('name');
             $table->foreignId('client_id')->constrained('clients')->onDelete('cascade');
-            $table->foreignId('plan_id')->constrained('plans')->onDelete('cascade');
+            $table->string('plan');
             $table->date('start_date');
             $table->date('end_date');
             $table->decimal('budget', 15, 2);

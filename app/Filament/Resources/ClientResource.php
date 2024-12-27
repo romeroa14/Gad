@@ -35,7 +35,7 @@ class ClientResource extends Resource
                             ->required()
                             ->maxLength(255),
 
-                        Forms\Components\TextInput::make('last name')
+                        Forms\Components\TextInput::make('last_name')
                             ->label('Apellido')
                             ->required()
                             ->maxLength(255),

@@ -9,6 +9,7 @@ use Filament\Support\Enums\ActionSize;
 use App\Filament\Widgets\ConnectedAccountsOverview;
 use App\Filament\Widgets\AdvertisingAccountsSelector;
 use Illuminate\Support\Facades\Auth;
+use Laravel\Socialite\Facades\Socialite;
 
 class Dashboard extends BaseDashboard
 {
@@ -19,9 +20,12 @@ class Dashboard extends BaseDashboard
     protected function getActions(): array
     {
         /** @var User|null $user */
-        $user = Auth::user();
+        // $user = Auth::user();
 
-        if (!$user?->facebook_access_token) {
+        $facebookUserData = Socialite::driver('facebook')->user();
+        $user = User::where('email', $facebookUserData->getEmail());
+
+        if (!$user?->token) {
             return [
                 Action::make('facebook_login')
                     ->label('Conectar con Facebook')
