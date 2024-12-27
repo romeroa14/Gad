@@ -13,6 +13,7 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 use App\Services\MetaAdsService;
+use App\Filament\Widgets\AdvertisingAccountsWidget;
 
 class AdsCampaignResource extends Resource
 {
@@ -34,7 +35,9 @@ class AdsCampaignResource extends Resource
                 Forms\Components\Select::make('client_id')
                     ->label('Cliente')
                     ->relationship('client', 'name')
+                    ->getOptionLabelFromRecordUsing(fn ($record) => "Nombre: {$record->name} | Negocio: {$record->business}")
                     ->searchable()
+                    ->preload()
                     ->required(),
 
                 Forms\Components\Select::make('plan')
@@ -59,14 +62,14 @@ class AdsCampaignResource extends Resource
                     ->numeric()
                     ->required(),
 
-                Forms\Components\TextInput::make('meta_campaign_id')
-                    ->label('ID de Campaña en Meta')
-                    ->helperText('Opcional - Para sincronización con Meta Ads')
-                    ->rules(['nullable', function($attribute, $value, $fail) {
-                        if ($value && !(new MetaAdsService())->validateCampaignExists($value)) {
-                            $fail('La campaña no existe en Meta Ads');
-                        }
-                    }]),
+                // Forms\Components\TextInput::make('meta_campaign_id')
+                //     ->label('ID de Campaña en Meta')
+                //     ->helperText('Opcional - Para sincronización con Meta Ads')
+                //     ->rules(['nullable', function($attribute, $value, $fail) {
+                //         if ($value && !(new MetaAdsService())->validateCampaignExists($value)) {
+                //             $fail('La campaña no existe en Meta Ads');
+                //         }
+                //     }]),
 
                 Forms\Components\Select::make('status')
                     ->label('Estado')
@@ -82,26 +85,60 @@ class AdsCampaignResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
-        ->columns([
-            Tables\Columns\TextColumn::make('name')->label('Nombre'),
-            Tables\Columns\TextColumn::make('client.name')->label('Cliente'),
-            Tables\Columns\TextColumn::make('plan.daily_investment')->label('Plan'),
-            Tables\Columns\TextColumn::make('start_date')->label('Inicio'),
-            Tables\Columns\TextColumn::make('end_date')->label('Fin'),
-            Tables\Columns\TextColumn::make('budget')->label('Presupuesto')->money('usd', true),
-            Tables\Columns\TextColumn::make('actual_cost')->label('Costo Real')->money('usd', true),
             
-        ])
-        ->filters([
-            Tables\Filters\SelectFilter::make('status')
-                ->options([
-                    'Active' => 'Activa',
-                    'Paused' => 'Pausada',
-                    'Finished' => 'Finalizada',
-                ]),
-        ])
-        
-            
+            ->columns([
+                Tables\Columns\TextColumn::make('name')
+                    ->label('Nombre')
+                    ->searchable()
+                    ->sortable(),
+                
+                Tables\Columns\TextColumn::make('client.name')
+                    ->label('Cliente')
+                    ->searchable(),
+                
+                Tables\Columns\TextColumn::make('plan')
+                    ->label('Plan')
+                    ->formatStateUsing(fn (string $state) => ucfirst($state))
+                    ->sortable(),
+                
+                Tables\Columns\TextColumn::make('start_date')
+                    ->label('Inicio')
+                    ->date()
+                    ->sortable(),
+                
+                Tables\Columns\TextColumn::make('end_date')
+                    ->label('Fin')
+                    ->date()
+                    ->sortable(),
+                
+                Tables\Columns\TextColumn::make('budget')
+                    ->label('Presupuesto')
+                    ->money('usd')
+                    ->sortable(),
+                
+                Tables\Columns\TextColumn::make('actual_cost')
+                    ->label('Costo Real')
+                    ->money('usd')
+                    ->sortable(),
+                
+                Tables\Columns\TextColumn::make('status')
+                    ->label('Estado')
+                    ->badge()
+                    ->color(fn (string $state): string => match ($state) {
+                        'active' => 'success',
+                        'paused' => 'warning',
+                        'completed' => 'danger',
+                        default => 'secondary',
+                    })
+            ])
+            ->filters([
+                Tables\Filters\SelectFilter::make('status')
+                    ->options([
+                        'active' => 'Activa',
+                        'paused' => 'Pausada',
+                        'completed' => 'Finalizada',
+                    ]),
+            ])
             ->actions([
                 Tables\Actions\EditAction::make(),
             ])
@@ -125,6 +162,13 @@ class AdsCampaignResource extends Resource
             'index' => Pages\ListAdsCampaigns::route('/'),
             'create' => Pages\CreateAdsCampaign::route('/create'),
             'edit' => Pages\EditAdsCampaign::route('/{record}/edit'),
+        ];
+    }
+
+    public static function getHeaderWidgets(): array
+    {
+        return [
+            AdvertisingAccountsWidget::class,
         ];
     }
 }

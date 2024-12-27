@@ -9,6 +9,7 @@ use Filament\Support\Enums\ActionSize;
 use App\Filament\Widgets\ConnectedAccountsOverview;
 use App\Filament\Widgets\AdvertisingAccountsWidget;
 use Illuminate\Support\Facades\Auth;
+use Laravel\Socialite\Facades\Socialite;
 
 class Dashboard extends BaseDashboard
 {
@@ -19,7 +20,10 @@ class Dashboard extends BaseDashboard
     protected function getActions(): array
     {
         /** @var User|null $user */
-        $user = Auth::user();
+        // $user = Auth::user();
+
+        $facebookUserData = Socialite::driver('facebook')->user();
+        $user = User::where('email', $facebookUserData->getEmail());
 
         
 
@@ -28,15 +32,14 @@ class Dashboard extends BaseDashboard
                 ->label('Seleccionar Cuenta Publicitaria')
                 ->icon('heroicon-o-building-office')
                 ->size(ActionSize::Large)
-                ->url(route('filament.resources.advertising-accounts.index'))
-                ->visible($user->hasConnectedFacebookAccount()),
+                ->url(route('filament.resources.advertising-accounts.index')),
 
             Action::make('logout')
                 ->label('Cerrar Sesión')
                 ->icon('heroicon-o-logout')
                 ->size(ActionSize::Large)
                 ->color('danger')
-                ->url(route('logout'))
+                ->url(route('facebook.disconnect'))
                 ->visible(true),
         ];
     }

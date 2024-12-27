@@ -17,7 +17,6 @@ class FacebookAuthWidget extends Widget
 
     public function disconnect(): void
     {
-        Log::info('Iniciando desconexión de Facebook');
         try {
             DB::beginTransaction();
             
@@ -27,12 +26,12 @@ class FacebookAuthWidget extends Widget
             // Primero eliminamos las cuentas publicitarias
             $user->advertisingAccounts()->delete();
             
-            // Luego limpiamos los datos de Facebook
-            $user->forceFill([
+            // Solo actualizamos los campos de Facebook
+            $user->update([
                 'facebook_access_token' => null,
                 'facebook_token_expires_at' => null,
                 'facebook_id' => null
-            ])->save();
+            ]);
             
             DB::commit();
             
@@ -43,21 +42,13 @@ class FacebookAuthWidget extends Widget
 
             $this->redirect('/admin');
             
-            Log::info('Desconexión exitosa');
-            
         } catch (\Exception $e) {
             DB::rollBack();
-            
-            Log::error('Error al desconectar Facebook: ' . $e->getMessage(), [
-                'user_id' => Auth::id(),
-                'trace' => $e->getTraceAsString()
-            ]);
+            Log::error('Error al desconectar Facebook: ' . $e->getMessage());
             
             Notification::make()
                 ->danger()
                 ->title('Error al desconectar la cuenta de Facebook')
-                ->body('Por favor, intenta nuevamente')
-                ->persistent()
                 ->send();
         }
     }
