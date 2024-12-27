@@ -17,6 +17,7 @@ use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\AuthenticateSession;
 use Illuminate\Session\Middleware\StartSession;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
+use App\Filament\Widgets\FacebookAuthWidget;
 
 class AdminPanelProvider extends PanelProvider
 {
@@ -40,6 +41,7 @@ class AdminPanelProvider extends PanelProvider
                 Widgets\AccountWidget::class,
                 Widgets\FilamentInfoWidget::class,
                 // Widgets\AdvertisingAccountsWidget::class,
+                FacebookAuthWidget::class,
             ])
             ->middleware([
                 EncryptCookies::class,
