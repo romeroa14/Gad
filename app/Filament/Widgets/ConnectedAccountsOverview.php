@@ -25,23 +25,25 @@ class ConnectedAccountsOverview extends BaseWidget
 
         }
         return [
-            Stat::make('Estado', 'No autenticado')
-                ->color('danger')
-                ->icon('heroicon-o-x-circle'),
+            Stat::make('Estado', Auth::check() ? 'Autenticado' : 'No autenticado')
+                ->color(Auth::check() ? 'success' : 'danger')
+                ->icon(Auth::check() ? 'heroicon-o-check-circle' : 'heroicon-o-x-circle'),
 
-            Action::make('facebook_login')
-                ->label('Iniciar Sesión con Facebook')
-                ->icon('heroicon-o-users')
-                ->size(ActionSize::Large)
-                ->color('primary')
-                ->url(route('facebook.login')),
+            // Si el usuario no está autenticado, mostrar botón de login
+            ($user && $user->facebook_token) ? null : 
+                Action::make('facebook_login')
+                    ->label($user ? 'Conectar con Facebook' : 'Iniciar Sesión con Facebook')
+                    ->icon('heroicon-o-users')
+                    ->size(ActionSize::Large)
+                    ->color('primary')
+                    ->url(route('facebook.login')),
        
-            Stat::make('Estado de Conexión', $user->hasConnectedFacebookAccount() ? 'Conectado' : 'No Conectado')
+            Stat::make('Estado de Conexión', $user && $user->advertisingAccounts()->exists() ? 'Conectado' : 'No Conectado')
                 ->description('Facebook Business')
-                ->color($user->hasConnectedFacebookAccount() ? 'success' : 'danger')
+                ->color($user && $user->advertisingAccounts()->exists() ? 'success' : 'danger')
                 ->icon('heroicon-o-signal'),
 
-            Stat::make('Cuentas Publicitarias', (string)$user->advertisingAccounts()->count())
+            Stat::make('Cuentas Publicitarias', (string)($user ? $user->advertisingAccounts()->count() : 0))
                 ->description('Cuentas Conectadas')
                 ->icon('heroicon-o-building-office')
                 ->color('primary'),

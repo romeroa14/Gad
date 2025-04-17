@@ -33,4 +33,7 @@ return [
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
         ],
     ],
+    'pages' => [
+        App\Filament\Pages\AdvertisingAccountsPage::class,
+    ],
 ]; 

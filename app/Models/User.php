@@ -33,7 +33,8 @@ class User extends Authenticatable implements FilamentUser
 
     public function hasConnectedFacebookAccount(): bool
     {
-        return !empty($this->facebook_access_token);
+        // Comprobar si tiene token Y tiene cuentas
+        return $this->facebook_token !== null && $this->advertisingAccounts()->exists();
     }
 
     public function advertisingAccounts()
