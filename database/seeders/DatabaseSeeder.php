@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log as FacadesLog;
 use App\Models\State;
 use App\Models\City;
+use Illuminate\Support\Facades\Hash;
 
 class DatabaseSeeder extends Seeder
 {
@@ -81,15 +82,15 @@ class DatabaseSeeder extends Seeder
             'duration' => 30,
         ]);
 
-        // Crear servicios relacionados
-        $plans = Plan::all();
-        foreach ($plans as $plan) {
-            Service::create([
-                'serviceable_id' => $plan->id,
-                'serviceable_type' => Plan::class,
-                'name' => 'Planes publicitarios',
-            ]);
-        }
+        // // Crear servicios relacionados
+        // $plans = Plan::all();
+        // foreach ($plans as $plan) {
+        //     Service::create([
+        //         'serviceable_id' => $plan->id,
+        //         'serviceable_type' => Plan::class,
+        //         'name' => 'Planes publicitarios',
+        //     ]);
+        // }
 
         Service::create([
             'serviceable_id' => $personalized->id,
@@ -97,10 +98,13 @@ class DatabaseSeeder extends Seeder
             'name' => 'Servicio Personalizado',
         ]);
 
-        User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-            'password' => bcrypt('12345'),
-        ]);
+        if (!User::where('email', 'test@example.com')->exists()) {
+            User::factory()->create([
+                'email' => 'test@example.com',
+                'name' => 'Test User',
+                'password' => Hash::make('password'),
+                'email_verified_at' => now()->addYear(),
+            ]);
+        }
     }
 }

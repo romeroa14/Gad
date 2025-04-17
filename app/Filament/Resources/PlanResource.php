@@ -57,7 +57,6 @@ class PlanResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('name')->label('Nombre del Plan')->searchable(),
                 Tables\Columns\TextColumn::make('daily_investment')->label('Inversión Diaria'),
                 Tables\Columns\TextColumn::make('duration')->label('Duración'),
                 Tables\Columns\TextColumn::make('scope')->label('Alcance'),
