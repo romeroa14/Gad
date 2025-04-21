@@ -54,7 +54,6 @@ class Dashboard extends BaseDashboard
     {
         return [
             ConnectedAccountsOverview::class,
-            AdvertisingAccountsSelector::class,
         ];
     }
 } 
