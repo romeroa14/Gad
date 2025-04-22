@@ -40,6 +40,8 @@ class AdminPanelProvider extends PanelProvider
                 Widgets\AccountWidget::class,
                 Widgets\FilamentInfoWidget::class,
                 // Widgets\AdvertisingAccountsWidget::class,
+                \App\Filament\Widgets\ConnectedAccountsOverview::class,
+                \App\Filament\Widgets\AdvertisingAccountsWidget::class,
             ])
             ->middleware([
                 EncryptCookies::class,

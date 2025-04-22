@@ -2,6 +2,7 @@
 
 namespace App\Filament\Widgets;
 
+use App\Models\AdvertisingAccount;
 use Filament\Widgets\Widget;
 use Illuminate\Support\Facades\Auth;
 
@@ -13,6 +14,10 @@ class AdvertisingAccountsWidget extends Widget
 
     public function getAdvertisingAccounts()
     {
-        return Auth::user()->advertisingAccounts;
+        $user = Auth::user();
+        if (!$user) return collect();
+        
+        return $user->advertisingAccounts()
+            ->get();
     }
 } 

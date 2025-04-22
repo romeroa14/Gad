@@ -6,6 +6,7 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\HomeController;
 // use Illuminate\Container\Attributes\Auth;
 use Illuminate\Support\Facades\Auth;
+use App\Http\Controllers\AuthController;
 
 Route::get('/', function () {
     return redirect('/admin');
@@ -14,15 +15,14 @@ Route::get('/', function () {
 // Rutas de autenticación básica
 Route::get('login', [LoginController::class, 'showLoginForm'])->name('login');
 Route::post('login', [LoginController::class, 'login']);
-Route::get('logout', [LoginController::class, 'logout'])->name('logout');
+Route::get('/logout', [AuthController::class, 'logout'])->name('logout');
 
 // Rutas de Facebook
 Route::middleware(['web'])->group(function () {
-    Route::get('auth/facebook', [FacebookAuthController::class, 'redirect'])
+    Route::get('/auth/facebook/login', [\App\Http\Controllers\FacebookAuthController::class, 'redirectToFacebook'])
         ->name('facebook.login');
         
-    Route::get('auth/facebook/callback', [FacebookAuthController::class, 'callback'])
-        ->name('facebook.callback');
+    Route::get('/auth/facebook/callback', [\App\Http\Controllers\FacebookAuthController::class, 'handleFacebookCallback']);
 });
 
 Auth::routes();
@@ -35,3 +35,7 @@ Route::middleware(['auth'])->prefix('admin')->group(function () {
         return view('admin.dashboard');
     })->name('admin.dashboard');
 });
+
+Route::get('/auth/facebook/disconnect', [\App\Http\Controllers\FacebookAuthController::class, 'disconnect'])
+    ->name('facebook.disconnect')
+    ->middleware('auth');
