@@ -8,6 +8,10 @@ use App\Models\Client;
 use App\Models\Country;
 use App\Models\State;
 use App\Models\City;
+use App\Models\FacebookPage;
+use App\Models\AdvertisingAccount;
+use App\Models\InstagramAccount;
+use App\Models\FacebookAccount;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -26,6 +30,14 @@ class ClientResource extends Resource
 
     public static function form(Form $form): Form
     {
+        // Obtenemos la cuenta publicitaria seleccionada de la sesión
+        $selectedAccountId = session('selected_advertising_account_id');
+        $advertisingAccount = null;
+        
+        if ($selectedAccountId) {
+            $advertisingAccount = AdvertisingAccount::find($selectedAccountId);
+        }
+
         return $form
             ->schema([
                 Forms\Components\Section::make('Información Personal')
@@ -87,7 +99,66 @@ class ClientResource extends Resource
                             ->label('Dirección')
                             ->maxLength(255)
                             ->columnSpanFull(),
+                    ]),
+                
+                // Nueva sección para Facebook
+                Forms\Components\Section::make('Facebook')
+                    ->schema([
+                        Forms\Components\Placeholder::make('active_account')
+                            ->label('Cuenta Publicitaria Activa')
+                            ->content(function () use ($advertisingAccount) {
+                                if ($advertisingAccount) {
+                                    return $advertisingAccount->name . ' (' . $advertisingAccount->account_id . ')';
+                                }
+                                return 'Ninguna cuenta seleccionada';
+                            })
+                            ->visible(fn() => $advertisingAccount !== null),
+                            
+                        Forms\Components\Select::make('facebook_page_id')
+                            ->label('Fanpage de Facebook')
+                            ->searchable()
+                            ->preload()
+                            ->options(function () use ($advertisingAccount) {
+                                if (!$advertisingAccount) {
+                                    return [];
+                                }
+                                
+                                // Asumiendo que tienes una relación entre cuentas publicitarias y páginas
+                                return FacebookPage::where('advertising_account_id', $advertisingAccount->id)
+                                    ->orWhere('ad_account_id', $advertisingAccount->account_id)
+                                    ->pluck('name', 'id');
+                            })
+                            ->helperText(function () use ($advertisingAccount) {
+                                if (!$advertisingAccount) {
+                                    return 'Selecciona una cuenta publicitaria para ver las fanpages disponibles';
+                                }
+                                return '';
+                            })
+                            ->disabled(fn() => $advertisingAccount === null),
+                            
+                        Forms\Components\Select::make('instagram_account_id')
+                            ->label('Cuenta de Instagram')
+                            ->searchable()
+                            ->preload()
+                            ->options(function () use ($advertisingAccount) {
+                                if (!$advertisingAccount) {
+                                    return [];
+                                }
+                                
+                                // Asumiendo que tienes una relación entre cuentas publicitarias e Instagram
+                                return InstagramAccount::where('advertising_account_id', $advertisingAccount->id)
+                                    ->orWhere('ad_account_id', $advertisingAccount->account_id)
+                                    ->pluck('username', 'id');
+                            })
+                            ->helperText(function () use ($advertisingAccount) {
+                                if (!$advertisingAccount) {
+                                    return 'Selecciona una cuenta publicitaria para ver las cuentas de Instagram disponibles';
+                                }
+                                return '';
+                            })
+                            ->disabled(fn() => $advertisingAccount === null),
                     ])
+                    ->visible(true),
             ]);
     }
 

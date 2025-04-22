@@ -18,6 +18,8 @@ class Client extends Model
         'country_id',
         'state_id',
         'address',
+        'facebook_page_id',
+        'instagram_account_id',
     ];
 
     public function adsCampaigns()
@@ -48,5 +50,15 @@ class Client extends Model
     public function city()
     {
         return $this->belongsTo(City::class);
+    }
+
+    public function facebookPage()
+    {
+        return $this->belongsTo(FacebookPage::class);
+    }
+
+    public function instagramAccount()
+    {
+        return $this->belongsTo(InstagramAccount::class);
     }
 }
