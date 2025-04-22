@@ -35,7 +35,7 @@ class ClientResource extends Resource
                             ->required()
                             ->maxLength(255),
 
-                        Forms\Components\TextInput::make('last name')
+                        Forms\Components\TextInput::make('last_name')
                             ->label('Apellido')
                             ->required()
                             ->maxLength(255),
@@ -83,18 +83,6 @@ class ClientResource extends Resource
                             ->reactive()
                             ->afterStateUpdated(fn (callable $set) => $set('city_id', null)),
 
-                        Forms\Components\Select::make('city_id')
-                            ->label('Ciudad')
-                            ->required()
-                            ->searchable()
-                            ->options(function (callable $get) {
-                                $state = $get('state_id');
-                                if (!$state) {
-                                    return [];
-                                }
-                                return City::where('state_id', $state)->pluck('name', 'id');
-                            }),
-
                         Forms\Components\Textarea::make('address')
                             ->label('Dirección')
                             ->maxLength(255)
@@ -107,6 +95,17 @@ class ClientResource extends Resource
     {
         return $table
             ->columns([
+
+                Tables\Columns\TextColumn::make('country.name')
+                    ->label('País')
+                    ->sortable()
+                    ->searchable(),
+
+                Tables\Columns\TextColumn::make('state.name')
+                    ->label('Estado/Provincia')
+                    ->sortable()
+                    ->searchable(),
+                    
                 Tables\Columns\TextColumn::make('name')
                     ->label('Nombre')
                     ->searchable()
@@ -130,20 +129,8 @@ class ClientResource extends Resource
                     ->label('Negocio')
                     ->searchable(),
 
-                Tables\Columns\TextColumn::make('country.name')
-                    ->label('País')
-                    ->sortable()
-                    ->searchable(),
+                
 
-                Tables\Columns\TextColumn::make('state.name')
-                    ->label('Estado/Provincia')
-                    ->sortable()
-                    ->searchable(),
-
-                Tables\Columns\TextColumn::make('city.name')
-                    ->label('Ciudad')
-                    ->sortable()
-                    ->searchable(),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('country_id')

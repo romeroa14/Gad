@@ -3,6 +3,7 @@
 namespace App\Filament\Pages;
 
 use App\Models\User;
+use App\Models\AdvertisingAccount;
 use Filament\Pages\Dashboard as BaseDashboard;
 use Filament\Actions\Action;
 use Filament\Support\Enums\ActionSize;
@@ -36,17 +37,48 @@ class Dashboard extends BaseDashboard
         // Usuario autenticado - mostrar botones relevantes para usuarios autenticados
         $actions = [];
         
-        // Botón para seleccionar cuenta publicitaria - visible solo si tiene cuentas conectadas
+        // Mostrar información sobre la cuenta activa si hay una seleccionada
+        $selectedAdAccountId = session('selected_advertising_account_id');
+        if ($selectedAdAccountId) {
+            $adAccount = AdvertisingAccount::find($selectedAdAccountId);
+            if ($adAccount) {
+                $actions[] = Action::make('current_ad_account')
+                    ->label('Cuenta Activa: ' . $adAccount->name)
+                    ->icon('heroicon-o-building-office')
+                    ->color('success')
+                    ->size(ActionSize::Large)
+                    ->badge(function () use ($adAccount) {
+                        // Mostrar el estado de la cuenta como un badge
+                        $statusText = 'Inactivo';
+                        $color = 'gray';
+                        
+                        if ($adAccount->status === 1) {
+                            $statusText = 'Activo';
+                            $color = 'success';
+                        } elseif ($adAccount->status === 2) {
+                            $statusText = 'Deshabilitado';
+                            $color = 'warning';
+                        }
+                        
+                        return $statusText;
+                    })
+                    ->extraAttributes(['title' => 'ID: ' . $adAccount->account_id])
+                    ->disabled();
+            }
+        }
+        
+        // Botón para cambiar cuenta publicitaria - visible solo si tiene cuentas conectadas
         if ($user->advertisingAccounts()->exists()) {
-            $actions[] = Action::make('select_ad_account')
-                ->label('Seleccionar Cuenta Publicitaria')
-                ->icon('heroicon-o-building-office')
+            $actions[] = Action::make('change_ad_account')
+                ->label('Cambiar Cuenta')
+                ->icon('heroicon-o-arrows-right-left')
                 ->size(ActionSize::Large)
-                ->url(route('filament.resources.advertising-accounts.index'));
+                ->url('#advertising-accounts-widget')
+                ->extraAttributes(['data-scroll-to' => 'advertising-accounts-widget']);
         }
         
         // Si no tiene una conexión de Facebook activa, mostrar el botón para conectar
-        if (!$user->facebook_access_token) {
+        if (!$user->hasConnectedFacebookAccount()) {
             $actions[] = Action::make('connect_facebook')
                 ->label('Conectar con Facebook')
                 ->icon('heroicon-o-link')
@@ -77,5 +109,18 @@ class Dashboard extends BaseDashboard
             ConnectedAccountsOverview::class,
             AdvertisingAccountsWidget::class,
         ];
+    }
+    
+    /**
+     * Obtener la cuenta publicitaria activa actual
+     */
+    public function getActiveAdvertisingAccount()
+    {
+        $accountId = session('selected_advertising_account_id');
+        if (!$accountId) {
+            return null;
+        }
+        
+        return AdvertisingAccount::find($accountId);
     }
 } 

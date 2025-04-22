@@ -52,8 +52,7 @@ class DatabaseSeeder extends Seeder
             'phone' => '123456789',
             'business' => 'Negocio de Prueba',
             'country_id' => 237,
-            'state_id' => $randomStateId,
-            'city_id' => $randomCityId->id, // Asegurarse de usar el ID de la ciudad
+            'state_id' => $randomStateId,// Asegurarse de usar el ID de la ciudad
             'address' => 'Dirección de Prueba',
         ]);
 
