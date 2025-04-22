@@ -9,6 +9,7 @@ use Filament\Tables\Table;
 use Filament\Widgets\TableWidget as BaseWidget;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 class AdvertisingAccountsWidget extends BaseWidget
 {
@@ -72,12 +73,42 @@ class AdvertisingAccountsWidget extends BaseWidget
     
     protected int | string | array $columnSpan = 'full';
 
+    /**
+     * Obtener las cuentas publicitarias asociadas a la cuenta de Facebook actual
+     */
     public function getAdvertisingAccounts()
     {
-        $user = Auth::user();
-        if (!$user) return collect();
+        // Obtener la cuenta de Facebook desde la sesión o la última creada
+        $facebookAccountId = session('facebook_account_id');
+        $facebookAccount = null;
         
-        return $user->advertisingAccounts()
-            ->get();
+        if ($facebookAccountId) {
+            $facebookAccount = FacebookAccount::find($facebookAccountId);
+        }
+        
+        if (!$facebookAccount) {
+            $facebookAccount = FacebookAccount::latest()->first();
+            
+            if ($facebookAccount) {
+                session(['facebook_account_id' => $facebookAccount->id]);
+            }
+        }
+        
+        // Si no hay cuenta de Facebook o no tiene un token válido, devolver colección vacía
+        if (!$facebookAccount || !$facebookAccount->hasValidToken()) {
+            Log::info('No hay cuenta de Facebook válida para obtener cuentas publicitarias');
+            return collect([]);
+        }
+        
+        // Obtener las cuentas publicitarias
+        $accounts = $facebookAccount->advertisingAccounts;
+        
+        Log::info('Cuentas publicitarias obtenidas', [
+            'facebook_account_id' => $facebookAccount->id,
+            'facebook_user' => $facebookAccount->facebook_user_name,
+            'accounts_count' => $accounts->count()
+        ]);
+        
+        return $accounts;
     }
 } 
