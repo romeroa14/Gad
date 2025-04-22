@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use App\Models\AdvertisingAccount;
+use App\Models\FacebookAccount;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
@@ -36,64 +37,74 @@ class FacebookAuthController extends Controller
     public function handleFacebookCallback(Request $request)
     {
         try {
-            Log::info('Iniciando callback de Facebook', [
-                'has_code' => $request->has('code'),
-                'has_error' => $request->has('error')
-            ]);
+            Log::info('Iniciando callback de Facebook');
 
             // Verificar si hay errores en la respuesta de Facebook
             if ($request->has('error') || $request->has('error_reason')) {
-                Log::error('Error en callback de Facebook (desde parámetros)', [
+                Log::error('Error en callback de Facebook', [
                     'error' => $request->error,
                     'error_reason' => $request->error_reason,
                     'error_description' => $request->error_description
                 ]);
-                return redirect('/admin')->with('error', 'Error durante la autenticación con Facebook: ' . ($request->error_description ?? 'Acceso denegado'));
+                return redirect('/admin')->with('error', 'Error durante la conexión con Facebook: ' . ($request->error_description ?? 'Acceso denegado'));
             }
 
             // Obtener datos del usuario desde Facebook
             $fbUser = Socialite::driver('facebook')->stateless()->user();
             
-            Log::info('Datos de usuario obtenidos correctamente', [
+            Log::info('Datos de usuario obtenidos de Facebook', [
                 'id' => $fbUser->getId(),
                 'name' => $fbUser->getName(),
-                'email' => $fbUser->getEmail()
+                'email' => $fbUser->getEmail(),
+                'token_length' => strlen($fbUser->token),
+                'expires_in' => $fbUser->expiresIn ?? 0,
+                'refresh_token' => isset($fbUser->refreshToken) ? 'presente' : 'ausente'
             ]);
 
-            // Verifica que tenemos un email
-            if (empty($fbUser->getEmail())) {
-                Log::error('Facebook no proporcionó email');
-                return redirect('/admin')->with('error', 'Facebook no proporcionó un email válido');
-            }
+            // Calcular fecha de expiración correctamente
+            // Por defecto, Facebook generalmente da tokens válidos por 60 días (5184000 segundos)
+            $expiresIn = !empty($fbUser->expiresIn) && $fbUser->expiresIn > 3600 
+                ? $fbUser->expiresIn 
+                : 5184000; // 60 días en segundos como fallback
+            
+            $expirationDate = now()->addSeconds($expiresIn);
+            
+            Log::info('Calculando fecha de expiración del token', [
+                'expires_in_seconds' => $expiresIn,
+                'expiration_date' => $expirationDate,
+                'is_future' => $expirationDate->isFuture()
+            ]);
 
-            // Buscar o crear el usuario
-            $user = User::updateOrCreate(
-                ['email' => $fbUser->getEmail()],
+            // Crear o actualizar la cuenta de Facebook independientemente del usuario
+            $facebookAccount = FacebookAccount::updateOrCreate(
+                ['facebook_id' => $fbUser->getId()],
                 [
-                    'name' => $fbUser->getName(),
-                    'facebook_id' => $fbUser->getId(),
+                    'facebook_user_name' => $fbUser->getName(),
+                    'facebook_email' => $fbUser->getEmail(),
                     'facebook_access_token' => $fbUser->token,
-                    'facebook_token_expires_at' => now()->addSeconds($fbUser->expiresIn),
-                    'email_verified_at' => now(),
+                    'facebook_token_expires_at' => $expirationDate,
+                    'user_id' => null, // No asociamos a ningún usuario del sistema
                 ]
             );
 
-            // Actualizar la sesión con el usuario autenticado
-            Auth::login($user);
+            // Guardar la cuenta en la sesión para uso futuro
+            session(['facebook_account_id' => $facebookAccount->id]);
+            Log::info('ID de cuenta de Facebook guardada en sesión', [
+                'facebook_account_id' => $facebookAccount->id,
+                'user_name' => $facebookAccount->facebook_user_name,
+                'token_expires_at' => $facebookAccount->facebook_token_expires_at
+            ]);
 
-            // Intentar obtener las cuentas publicitarias si hay token
-            if ($user->facebook_access_token) {
-                $this->fetchAndProcessAdAccounts($user->facebook_access_token, $user);
-            }
+            // Obtener las cuentas publicitarias
+            $this->fetchAndProcessAdAccounts($facebookAccount);
 
-            return redirect('/admin')->with('success', 'Conectado con Facebook exitosamente');
+            return redirect('/admin')->with('success', 'Cuenta de Facebook conectada exitosamente. Ahora puedes acceder a tus cuentas publicitarias.');
 
         } catch (\Exception $e) {
-            Log::error('Facebook callback error: ', [
-                'message' => $e->getMessage(),
+            Log::error('Error durante conexión con Facebook: ' . $e->getMessage(), [
                 'trace' => $e->getTraceAsString()
             ]);
-            return redirect('/admin')->with('error', 'Error durante la autenticación con Facebook: ' . $e->getMessage());
+            return redirect('/admin')->with('error', 'Error durante la conexión con Facebook: ' . $e->getMessage());
         }
     }
 
@@ -103,95 +114,115 @@ class FacebookAuthController extends Controller
     public function disconnect()
     {
         try {
-            $user = Auth::user();
+            $facebookAccountId = session('facebook_account_id');
             
-            if ($user) {
-                // Registrar la acción
-                Log::info('Eliminando usuario y desconectando cuenta de Facebook', [
-                    'user_id' => $user->id,
-                    'email' => $user->email
-                ]);
+            if ($facebookAccountId) {
+                $facebookAccount = FacebookAccount::find($facebookAccountId);
                 
-                // Guardar información para el log antes de eliminar
-                $userId = $user->id;
-                $userEmail = $user->email;
-                
-                // Eliminar las cuentas publicitarias asociadas primero (relaciones)
-                $user->advertisingAccounts()->delete();
-                
-                // Cerrar la sesión antes de eliminar el usuario
-                Auth::logout();
-                
-                // Eliminar el usuario completamente
-                $user->delete();
-                
-                Log::info('Usuario eliminado correctamente', [
-                    'user_id' => $userId,
-                    'email' => $userEmail
-                ]);
-                
-                // Invalidar la sesión y regenerar el token CSRF
-                request()->session()->invalidate();
-                request()->session()->regenerateToken();
-                
-                return redirect('/admin')->with('success', 'Tu cuenta ha sido eliminada correctamente');
+                if ($facebookAccount) {
+                    // Registrar la acción
+                    Log::info('Desconectando cuenta de Facebook', [
+                        'facebook_id' => $facebookAccount->facebook_id,
+                        'facebook_email' => $facebookAccount->facebook_email
+                    ]);
+                    
+                    // Eliminar cuentas publicitarias y cuenta de Facebook
+                    $facebookAccount->advertisingAccounts()->delete();
+                    $facebookAccount->delete();
+                    
+                    // Limpiar la sesión
+                    session()->forget('facebook_account_id');
+                    
+                    return redirect('/admin')->with('success', 'Cuenta de Facebook desconectada correctamente');
+                }
             }
             
-            return redirect('/admin')->with('error', 'No se pudo desconectar la cuenta');
-            
+            return redirect('/admin')->with('error', 'No se encontró una cuenta de Facebook para desconectar');
         } catch (\Exception $e) {
-            Log::error('Error al eliminar usuario: ' . $e->getMessage(), [
+            Log::error('Error al desconectar Facebook: ' . $e->getMessage(), [
                 'trace' => $e->getTraceAsString()
             ]);
             
-            return redirect('/admin')->with('error', 'Error al eliminar la cuenta: ' . $e->getMessage());
+            return redirect('/admin')->with('error', 'Error al desconectar la cuenta de Facebook: ' . $e->getMessage());
         }
     }
 
-    private function fetchAndProcessAdAccounts($accessToken, $user)
+    private function fetchAndProcessAdAccounts(FacebookAccount $facebookAccount)
     {
         try {
-            $response = Http::get('https://graph.facebook.com/v19.0/me/adaccounts', [
-                'access_token' => $accessToken,
-                'fields' => 'name,account_status,currency,timezone_name'
+            $response = Http::get('https://graph.facebook.com/v17.0/me/adaccounts', [
+                'access_token' => $facebookAccount->facebook_access_token,
+                'fields' => 'id,name,account_status,currency,timezone_name,balance,amount_spent',
             ]);
 
-            if ($response->successful()) {
-                $adAccounts = $response->json('data', []);
-                
-                Log::info('Cuentas publicitarias obtenidas:', ['accounts' => $adAccounts]);
-
-                foreach ($adAccounts as $account) {
-                    $accountData = [
-                        'account_id' => $account['id'] ?? '',
-                        'name' => $account['name'] ?? 'Sin nombre',
-                        'status' => $account['account_status'] ?? 0,
-                        'currency' => $account['currency'] ?? 'USD',
-                        'timezone' => $account['timezone_name'] ?? 'UTC'
-                    ];
-
-                    Log::info('Procesando cuenta publicitaria:', $accountData);
-
-                    $user->advertisingAccounts()->updateOrCreate(
-                        ['account_id' => $accountData['account_id']],
-                        [
-                            'name' => $accountData['name'],
-                            'status' => $accountData['status'],
-                            'currency' => $accountData['currency'],
-                            'timezone' => $accountData['timezone']
-                        ]
-                    );
-                }
-            } else {
-                Log::error('Error al obtener cuentas publicitarias:', [
+            if (!$response->successful()) {
+                Log::error('Error al obtener cuentas publicitarias', [
                     'status' => $response->status(),
                     'body' => $response->body()
                 ]);
+                return;
             }
+
+            $adAccounts = $response->json('data', []);
+            
+            foreach ($adAccounts as $account) {
+                AdvertisingAccount::updateOrCreate(
+                    [
+                        'facebook_account_id' => $facebookAccount->id,
+                        'account_id' => $account['id'],
+                    ],
+                    [
+                        'name' => $account['name'],
+                        'status' => $account['account_status'] ?? 0,
+                        'currency' => $account['currency'] ?? 'USD',
+                        'timezone' => $account['timezone_name'] ?? 'America/Caracas',
+                    ]
+                );
+            }
+            
+            Log::info('Cuentas publicitarias actualizadas', [
+                'count' => count($adAccounts),
+                'facebook_account_id' => $facebookAccount->id
+            ]);
         } catch (\Exception $e) {
-            Log::error('Error al obtener cuentas publicitarias: ' . $e->getMessage(), [
+            Log::error('Error al procesar cuentas publicitarias', [
+                'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
         }
+    }
+
+    /**
+     * Método de depuración para verificar el estado de la conexión
+     */
+    public function checkConnection()
+    {
+        $facebookAccountId = session('facebook_account_id');
+        $account = $facebookAccountId ? FacebookAccount::find($facebookAccountId) : null;
+        
+        if (!$account) {
+            $account = FacebookAccount::latest()->first();
+            if ($account) {
+                session(['facebook_account_id' => $account->id]);
+            }
+        }
+        
+        $data = [
+            'session_has_id' => session()->has('facebook_account_id'),
+            'session_id' => session('facebook_account_id'),
+            'account_found' => $account ? true : false,
+            'account_details' => $account ? [
+                'id' => $account->id,
+                'facebook_id' => $account->facebook_id,
+                'facebook_user_name' => $account->facebook_user_name,
+                'token_exists' => !empty($account->facebook_access_token),
+                'token_expires' => $account->facebook_token_expires_at,
+                'token_is_valid' => $account->hasValidToken(),
+            ] : null
+        ];
+        
+        Log::info('Estado de conexión Facebook', $data);
+        
+        return response()->json($data);
     }
 }

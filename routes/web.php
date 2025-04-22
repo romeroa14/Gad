@@ -39,3 +39,6 @@ Route::middleware(['auth'])->prefix('admin')->group(function () {
 Route::get('/auth/facebook/disconnect', [\App\Http\Controllers\FacebookAuthController::class, 'disconnect'])
     ->name('facebook.disconnect')
     ->middleware('auth');
+
+// Ruta para depuración
+Route::get('/auth/facebook/check', [\App\Http\Controllers\FacebookAuthController::class, 'checkConnection']);

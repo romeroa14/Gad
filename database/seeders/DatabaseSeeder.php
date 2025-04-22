@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log as FacadesLog;
 use App\Models\State;
 use App\Models\City;
+use Database\Seeders\UserSeeder;
 
 class DatabaseSeeder extends Seeder
 {
@@ -97,10 +98,8 @@ class DatabaseSeeder extends Seeder
             'name' => 'Servicio Personalizado',
         ]);
 
-        User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-            'password' => bcrypt('12345'),
-        ]);
+        $this->call(UserSeeder::class);
+        
+        
     }
 }

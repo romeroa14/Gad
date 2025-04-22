@@ -17,9 +17,6 @@ return new class extends Migration
             $table->string('email')->unique();
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password')->nullable();
-            $table->string('facebook_id')->nullable();
-            $table->string('facebook_access_token')->nullable();
-            $table->timestamp('facebook_token_expires_at')->nullable();
             $table->rememberToken();
             $table->timestamps();
         });
