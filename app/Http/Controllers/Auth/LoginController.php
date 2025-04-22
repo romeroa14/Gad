@@ -30,4 +30,12 @@ class LoginController extends Controller
         
         return redirect()->route('login');
     }
+
+    protected function authenticated(Request $request, $user)
+    {
+        // Guardar el tiempo de inicio de sesión en la sesión
+        session(['login_time' => now()]);
+        
+        return redirect()->intended($this->redirectPath());
+    }
 } 
