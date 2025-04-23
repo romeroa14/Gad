@@ -48,7 +48,29 @@ class FacebookPage extends Model
         return $this->belongsTo(AdvertisingAccount::class);
     }
 
-   
+    /**
+     * Los clientes asociados a esta página de Facebook.
+     */
+    public function clients()
+    {
+        return $this->hasMany(Client::class, 'facebook_page_id', 'page_id');
+    }
+
+    /**
+     * Las cuentas de Instagram asociadas a esta página.
+     */
+    public function instagramAccounts()
+    {
+        return $this->hasMany(InstagramAccount::class, 'facebook_page_id', 'page_id');
+    }
+    
+    /**
+     * La cuenta de Facebook que administra esta página.
+     */
+    public function facebookAccount()
+    {
+        return $this->belongsTo(FacebookAccount::class);
+    }
 
     /**
      * Comprueba si la página está verificada.

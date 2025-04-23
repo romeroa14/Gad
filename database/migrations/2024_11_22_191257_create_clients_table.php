@@ -21,6 +21,8 @@ return new class extends Migration
             $table->foreignId('country_id')->constrained('countries');
             $table->foreignId('state_id')->constrained('states');
             $table->text('address')->nullable();
+            $table->string('facebook_page_id')->nullable()->after('address');
+            $table->string('instagram_account_id')->nullable()->after('facebook_page_id');
             $table->timestamps();
         });
     }
@@ -31,5 +33,9 @@ return new class extends Migration
     public function down(): void
     {
         Schema::dropIfExists('clients');
+
+        Schema::table('clients', function (Blueprint $table) {
+            $table->dropColumn(['facebook_page_id', 'instagram_account_id']);
+        });
     }
 };

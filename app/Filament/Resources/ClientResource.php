@@ -20,6 +20,7 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Cache;
 
 class ClientResource extends Resource
 {
@@ -316,20 +317,106 @@ class ClientResource extends Resource
     {
         return $table
             ->columns([
+                Tables\Columns\TextColumn::make('facebook_page_id')
+                    ->label('Fanpage de Facebook')
+                    ->formatStateUsing(function ($state, $record) {
+                        // Si no hay page_id, mostrar placeholder
+                        if (empty($state)) {
+                            return '-';
+                        }
+                        
+                        // Intentar obtener del caché primero
+                        $cacheKey = "facebook_page_{$state}";
+                        if (\Illuminate\Support\Facades\Cache::has($cacheKey)) {
+                            return \Illuminate\Support\Facades\Cache::get($cacheKey);
+                        }
+                        
+                        try {
+                            // Obtener token de Facebook desde la configuración
+                            $facebookToken = config('services.facebook.access_token');
+                            
+                            if (empty($facebookToken)) {
+                                return "ID: {$state}";
+                            }
+                            
+                            // Hacer llamada a la API de Facebook para obtener detalles de la página
+                            $response = \Illuminate\Support\Facades\Http::get("https://graph.facebook.com/v18.0/{$state}", [
+                                'fields' => 'name,category',
+                                'access_token' => $facebookToken
+                            ]);
+                            
+                            if ($response->successful()) {
+                                $pageData = $response->json();
+                                $pageName = $pageData['name'] ?? "ID: {$state}";
+                                
+                                // Guardar en caché por 24 horas
+                                \Illuminate\Support\Facades\Cache::put($cacheKey, $pageName, now()->addHours(24));
+                                
+                                return $pageName;
+                            }
+                            
+                            return "ID: {$state}";
+                        } catch (\Exception $e) {
+                            \Illuminate\Support\Facades\Log::error('Error al obtener datos de página Facebook', [
+                                'page_id' => $state,
+                                'error' => $e->getMessage()
+                            ]);
+                            
+                            return "ID: {$state}";
+                        }
+                    }),
 
-                Tables\Columns\TextColumn::make('country.name')
-                    ->label('País')
-                    ->sortable()
-                    ->searchable(),
-
-                Tables\Columns\TextColumn::make('state.name')
-                    ->label('Estado/Provincia')
-                    ->sortable()
-                    ->searchable(),
+                Tables\Columns\TextColumn::make('instagram_account_id')
+                    ->label('Cuenta de Instagram')
+                    ->formatStateUsing(function ($state, $record) {
+                        // Si no hay account_id, mostrar placeholder
+                        if (empty($state)) {
+                            return '-';
+                        }
+                        
+                        // Intentar obtener del caché primero
+                        $cacheKey = "instagram_account_{$state}";
+                        if (\Illuminate\Support\Facades\Cache::has($cacheKey)) {
+                            return \Illuminate\Support\Facades\Cache::get($cacheKey);
+                        }
+                        
+                        try {
+                            // Obtener token de Facebook desde la configuración
+                            $facebookToken = config('services.facebook.access_token');
+                            
+                            if (empty($facebookToken)) {
+                                return "ID: {$state}";
+                            }
+                            
+                            // Hacer llamada a la API de Facebook para obtener detalles de la cuenta IG
+                            $response = \Illuminate\Support\Facades\Http::get("https://graph.facebook.com/v18.0/{$state}", [
+                                'fields' => 'username,name',
+                                'access_token' => $facebookToken
+                            ]);
+                            
+                            if ($response->successful()) {
+                                $accountData = $response->json();
+                                $accountName = $accountData['username'] ?? $accountData['name'] ?? "ID: {$state}";
+                                
+                                // Guardar en caché por 24 horas
+                                \Illuminate\Support\Facades\Cache::put($cacheKey, $accountName, now()->addHours(24));
+                                
+                                return $accountName;
+                            }
+                            
+                            return "ID: {$state}";
+                        } catch (\Exception $e) {
+                            \Illuminate\Support\Facades\Log::error('Error al obtener datos de cuenta Instagram', [
+                                'account_id' => $state,
+                                'error' => $e->getMessage()
+                            ]);
+                            
+                            return "ID: {$state}";
+                        }
+                    }),
 
                 Tables\Columns\TextColumn::make('name')
                     ->label('Nombre')
-                    ->searchable()
                     ->sortable(),
 
                 Tables\Columns\TextColumn::make('last_name')
@@ -339,19 +426,13 @@ class ClientResource extends Resource
 
                 Tables\Columns\TextColumn::make('email')
                     ->label('Correo')
-                    ->searchable()
                     ->sortable(),
 
                 Tables\Columns\TextColumn::make('phone')
-                    ->label('Teléfono')
-                    ->searchable(),
+                    ->label('Teléfono'),
 
                 Tables\Columns\TextColumn::make('business')
-                    ->label('Negocio')
-                    ->searchable(),
-
-
-
+                    ->label('Negocio'),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('country_id')
