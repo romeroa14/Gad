@@ -43,6 +43,14 @@ class UserSeeder extends Seeder
             'password' => Hash::make('$Inversiones$2025'),
             'email_verified_at' => now(),
         ]);
+
+        User::create([
+            'name' => 'Valeria Ramos',
+            'email' => 'Valeriaramos@admetricas.com',
+            'password' => Hash::make('Orionvs20$'),
+            'email_verified_at' => now(),
+        ]);
+        
         
         
         

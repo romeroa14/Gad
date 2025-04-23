@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use App\Models\AdvertisingAccount;
 use App\Models\FacebookAccount;
+use App\Models\FacebookPage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
@@ -207,6 +208,8 @@ class FacebookAuthController extends Controller
             }
         }
         
+        $facebookPages = $account ? $this->getFacebookPages($account) : [];
+
         $data = [
             'session_has_id' => session()->has('facebook_account_id'),
             'session_id' => session('facebook_account_id'),
@@ -218,11 +221,43 @@ class FacebookAuthController extends Controller
                 'token_exists' => !empty($account->facebook_access_token),
                 'token_expires' => $account->facebook_token_expires_at,
                 'token_is_valid' => $account->hasValidToken(),
-            ] : null
+            ] : null,
+            'facebook_pages' => $facebookPages
         ];
         
         Log::info('Estado de conexión Facebook', $data);
         
         return response()->json($data);
+    }
+
+    // Agregar esta función para obtener las páginas
+    public function getFacebookPages($account)
+    {
+        if (!$account || !$account->hasValidToken()) {
+            return [];
+        }
+        
+        try {
+            $response = Http::get('https://graph.facebook.com/v18.0/me/accounts', [
+                'access_token' => $account->facebook_access_token,
+                'fields' => 'id,name,access_token,category,picture'
+            ]);
+
+            if ($response->successful()) {
+                return $response->json('data', []);
+            }
+            
+            Log::error('Error al extraer páginas de Facebook', [
+                'status' => $response->status(),
+                'response' => $response->json()
+            ]);
+            
+            return [];
+        } catch (\Exception $e) {
+            Log::error('Excepción al extraer páginas de Facebook', [
+                'error' => $e->getMessage()
+            ]);
+            return [];
+        }
     }
 }

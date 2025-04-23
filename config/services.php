@@ -20,8 +20,9 @@ return [
 
     // Configuración de Facebook
     'facebook' => [
-        'client_id' => env('FACEBOOK_CLIENT_ID'),
-        'client_secret' => env('FACEBOOK_CLIENT_SECRET'),
-        'redirect' => env('FACEBOOK_REDIRECT', 'http://localhost:8000/auth/facebook/callback'),
+        'client_id' => env('FACEBOOK_APP_ID'),
+        'client_secret' => env('FACEBOOK_APP_SECRET'),
+        'access_token' => env('FACEBOOK_ACCESS_TOKEN'),
+        'redirect' => env('FACEBOOK_REDIRECT'),
     ],
 ];

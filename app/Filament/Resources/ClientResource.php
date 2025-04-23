@@ -19,6 +19,7 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
+use Illuminate\Support\Facades\Http;
 
 class ClientResource extends Resource
 {
@@ -33,7 +34,7 @@ class ClientResource extends Resource
         // Obtenemos la cuenta publicitaria seleccionada de la sesión
         $selectedAccountId = session('selected_advertising_account_id');
         $advertisingAccount = null;
-        
+
         if ($selectedAccountId) {
             $advertisingAccount = AdvertisingAccount::find($selectedAccountId);
         }
@@ -79,7 +80,7 @@ class ClientResource extends Resource
                             ->searchable()
                             ->options(Country::pluck('name', 'id'))
                             ->reactive()
-                            ->afterStateUpdated(fn (callable $set) => $set('state_id', null)),
+                            ->afterStateUpdated(fn(callable $set) => $set('state_id', null)),
 
                         Forms\Components\Select::make('state_id')
                             ->label('Estado/Provincia')
@@ -93,14 +94,14 @@ class ClientResource extends Resource
                                 return State::where('country_id', $country)->pluck('name', 'id');
                             })
                             ->reactive()
-                            ->afterStateUpdated(fn (callable $set) => $set('city_id', null)),
+                            ->afterStateUpdated(fn(callable $set) => $set('city_id', null)),
 
                         Forms\Components\Textarea::make('address')
                             ->label('Dirección')
                             ->maxLength(255)
                             ->columnSpanFull(),
                     ]),
-                
+
                 // Nueva sección para Facebook
                 Forms\Components\Section::make('Facebook')
                     ->schema([
@@ -113,50 +114,199 @@ class ClientResource extends Resource
                                 return 'Ninguna cuenta seleccionada';
                             })
                             ->visible(fn() => $advertisingAccount !== null),
-                            
+
                         Forms\Components\Select::make('facebook_page_id')
                             ->label('Fanpage de Facebook')
                             ->searchable()
                             ->preload()
-                            ->options(function () use ($advertisingAccount) {
-                                if (!$advertisingAccount) {
+                            ->options(function () {
+                                // Añadimos logs extensivos para debugging
+                                \Illuminate\Support\Facades\Log::info('Iniciando carga de fanpages desde API');
+
+                                // Obtener la cuenta de Facebook activa y su token
+                                $facebookToken = config('services.facebook.access_token');
+
+                                // Usar directamente el token del .env (o configuración)
+                                \Illuminate\Support\Facades\Log::info('Token disponible: ' . ($facebookToken ? 'Sí' : 'No'));
+
+                                if (empty($facebookToken)) {
+                                    \Illuminate\Support\Facades\Log::error('Token de Facebook no disponible');
                                     return [];
                                 }
-                                
-                                // Asumiendo que tienes una relación entre cuentas publicitarias y páginas
-                                return FacebookPage::where('advertising_account_id', $advertisingAccount->id)
-                                    ->orWhere('ad_account_id', $advertisingAccount->account_id)
-                                    ->pluck('name', 'id');
-                            })
-                            ->helperText(function () use ($advertisingAccount) {
-                                if (!$advertisingAccount) {
-                                    return 'Selecciona una cuenta publicitaria para ver las fanpages disponibles';
+
+                                try {
+                                    \Illuminate\Support\Facades\Log::info('Realizando petición a API de Facebook');
+
+                                    // Petición directa a la API utilizando el token del .env
+                                    $response = \Illuminate\Support\Facades\Http::get('https://graph.facebook.com/v18.0/me/accounts', [
+                                        'access_token' => $facebookToken,
+                                        'fields' => 'id,name,category,picture'
+                                    ]);
+
+                                    // Log completo de la respuesta para debugging
+                                    \Illuminate\Support\Facades\Log::info('Respuesta de API', [
+                                        'status' => $response->status(),
+                                        'body' => $response->body()
+                                    ]);
+
+                                    if ($response->successful()) {
+                                        $pages = $response->json('data', []);
+
+                                        \Illuminate\Support\Facades\Log::info('Páginas recuperadas: ' . count($pages));
+
+                                        // Convertir a formato clave-valor para el select
+                                        $pageOptions = [];
+                                        foreach ($pages as $page) {
+                                            // Log detallado de cada página
+                                            \Illuminate\Support\Facades\Log::info('Página encontrada', [
+                                                'id' => $page['id'] ?? 'N/A',
+                                                'name' => $page['name'] ?? 'N/A'
+                                            ]);
+
+                                            $pageOptions[$page['id']] = $page['name'];
+                                        }
+
+                                        return $pageOptions;
+                                    }
+
+                                    \Illuminate\Support\Facades\Log::error('Error al extraer páginas de Facebook', [
+                                        'status' => $response->status(),
+                                        'response' => $response->json()
+                                    ]);
+
+                                    return [];
+                                } catch (\Exception $e) {
+                                    \Illuminate\Support\Facades\Log::error('Excepción al extraer páginas de Facebook', [
+                                        'error' => $e->getMessage(),
+                                        'trace' => $e->getTraceAsString()
+                                    ]);
+                                    return [];
                                 }
-                                return '';
                             })
-                            ->disabled(fn() => $advertisingAccount === null),
-                            
+                            ->helperText('Selecciona una página de Facebook para asociarla con este cliente')
+                            ->afterStateUpdated(function ($state, \Filament\Forms\Set $set) {
+                                // Reinicia la selección de Instagram si cambia la página
+                                $set('instagram_account_id', null);
+
+                                // Podríamos cargar cuentas de Instagram, pero lo simplificamos por ahora
+                            }),
+
                         Forms\Components\Select::make('instagram_account_id')
                             ->label('Cuenta de Instagram')
                             ->searchable()
                             ->preload()
-                            ->options(function () use ($advertisingAccount) {
-                                if (!$advertisingAccount) {
+                            ->options(function ($get) {
+                                $pageId = $get('facebook_page_id');
+
+                                \Illuminate\Support\Facades\Log::info('Cargando cuentas de Instagram para page_id: ' . $pageId);
+
+                                if (empty($pageId)) {
                                     return [];
                                 }
-                                
-                                // Asumiendo que tienes una relación entre cuentas publicitarias e Instagram
-                                return InstagramAccount::where('advertising_account_id', $advertisingAccount->id)
-                                    ->orWhere('ad_account_id', $advertisingAccount->account_id)
-                                    ->pluck('username', 'id');
-                            })
-                            ->helperText(function () use ($advertisingAccount) {
-                                if (!$advertisingAccount) {
-                                    return 'Selecciona una cuenta publicitaria para ver las cuentas de Instagram disponibles';
+
+                                // Obtener token de acceso directamente de la configuración
+                                $facebookToken = config('services.facebook.access_token');
+
+                                if (empty($facebookToken)) {
+                                    \Illuminate\Support\Facades\Log::error('Token de Facebook no disponible para Instagram');
+                                    return [];
                                 }
-                                return '';
+
+                                try {
+                                    \Illuminate\Support\Facades\Log::info('Obteniendo página de Facebook');
+
+                                    // Primero obtenemos el token específico de la página
+                                    $pageResponse = \Illuminate\Support\Facades\Http::get("https://graph.facebook.com/v18.0/{$pageId}", [
+                                        'fields' => 'access_token,instagram_business_account',
+                                        'access_token' => $facebookToken
+                                    ]);
+
+                                    \Illuminate\Support\Facades\Log::info('Respuesta token de página', [
+                                        'status' => $pageResponse->status(),
+                                        'body' => $pageResponse->body()
+                                    ]);
+
+                                    if (!$pageResponse->successful()) {
+                                        \Illuminate\Support\Facades\Log::error('Error al obtener token de página');
+                                        return [];
+                                    }
+
+                                    // Extraer token de página
+                                    $pageToken = $pageResponse->json('access_token');
+                                    $instagramBusinessAccountId = $pageResponse->json('instagram_business_account.id');
+
+                                    \Illuminate\Support\Facades\Log::info('Datos obtenidos', [
+                                        'page_token' => $pageToken ? 'Disponible' : 'No disponible',
+                                        'instagram_business_account' => $instagramBusinessAccountId
+                                    ]);
+
+                                    // Si tenemos el ID de Instagram Business directamente de la página
+                                    if ($instagramBusinessAccountId) {
+                                        // Obtener detalles de esta cuenta
+                                        $igResponse = \Illuminate\Support\Facades\Http::get("https://graph.facebook.com/v18.0/{$instagramBusinessAccountId}", [
+                                            'fields' => 'username,name,profile_picture_url',
+                                            'access_token' => $pageToken ?? $facebookToken
+                                        ]);
+                                        
+                                        \Illuminate\Support\Facades\Log::info('Respuesta de cuenta Instagram Business', [
+                                            'status' => $igResponse->status(),
+                                            'body' => $igResponse->body()
+                                        ]);
+                                        
+                                        if ($igResponse->successful()) {
+                                            $igDetails = $igResponse->json();
+                                            $instagramOptions = [
+                                                $instagramBusinessAccountId => $igDetails['username'] ?? $igDetails['name'] ?? 'Cuenta de Instagram'
+                                            ];
+                                            return $instagramOptions;
+                                        }
+                                    }
+
+                                    // Enfoque alternativo: obtener cuentas vinculadas
+                                    $response = \Illuminate\Support\Facades\Http::get("https://graph.facebook.com/v18.0/{$pageId}/instagram_accounts", [
+                                        'access_token' => $pageToken ?? $facebookToken
+                                    ]);
+
+                                    \Illuminate\Support\Facades\Log::info('Respuesta de Instagram', [
+                                        'status' => $response->status(),
+                                        'body' => $response->body()
+                                    ]);
+
+                                    if ($response->successful()) {
+                                        $accounts = $response->json('data', []);
+
+                                        \Illuminate\Support\Facades\Log::info('Cuentas de Instagram encontradas: ' . count($accounts));
+
+                                        // Convertir a formato para el select
+                                        $instagramOptions = [];
+                                        foreach ($accounts as $account) {
+                                            \Illuminate\Support\Facades\Log::info('Cuenta IG encontrada', [
+                                                'id' => $account['id'] ?? 'N/A',
+                                                'username' => $account['username'] ?? 'N/A'
+                                            ]);
+
+                                            $instagramOptions[$account['id']] = $account['username'] ?? 'Cuenta sin nombre';
+                                        }
+
+                                        return $instagramOptions;
+                                    }
+
+                                    \Illuminate\Support\Facades\Log::error('Error al obtener cuentas de Instagram', [
+                                        'status' => $response->status(),
+                                        'response' => $response->json()
+                                    ]);
+
+                                    return [];
+                                } catch (\Exception $e) {
+                                    \Illuminate\Support\Facades\Log::error('Excepción al obtener cuentas de Instagram', [
+                                        'error' => $e->getMessage(),
+                                        'trace' => $e->getTraceAsString()
+                                    ]);
+                                    return [];
+                                }
                             })
-                            ->disabled(fn() => $advertisingAccount === null),
+                            ->helperText('Selecciona la cuenta de Instagram asociada a la página de Facebook'),
+
                     ])
                     ->visible(true),
             ]);
@@ -176,7 +326,7 @@ class ClientResource extends Resource
                     ->label('Estado/Provincia')
                     ->sortable()
                     ->searchable(),
-                    
+
                 Tables\Columns\TextColumn::make('name')
                     ->label('Nombre')
                     ->searchable()
@@ -200,7 +350,7 @@ class ClientResource extends Resource
                     ->label('Negocio')
                     ->searchable(),
 
-                
+
 
             ])
             ->filters([
