@@ -19,7 +19,7 @@ class FacebookAdsService
     public function __construct()
     {
         try {
-            $this->accessToken = 'EAAIkrOlnGSABO4jrpCxyeH8WtHZAwKfCxheh6BSbOOxXWZAB2l3eUY2Tye0gpJfjCsuxiEr8MkWXenwLVSKixHZC8HraT46kl3QGKr2pBLwscZAc8qbdZCiuoi6APZBNCvGmDTxpgBNFuPuuccmqO7oTGBfg9HaZBkOsaIZCTL6GPZCd9jxEHAxo87FtuDZCgVj1NUGlq7UT03Mvk4D7U0JJab32Pne5HiWjoZD';
+            $this->accessToken = env('FACEBOOK_ACCESS_TOKEN');
             
             // Añadir logs para debug
             $rawAccountId = '933248667753162';

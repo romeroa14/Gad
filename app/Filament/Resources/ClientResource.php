@@ -141,7 +141,8 @@ class ClientResource extends Resource
                                     // Petición directa a la API utilizando el token del .env
                                     $response = \Illuminate\Support\Facades\Http::get('https://graph.facebook.com/v18.0/me/accounts', [
                                         'access_token' => $facebookToken,
-                                        'fields' => 'id,name,category,picture'
+                                        'fields' => 'id,name,category,picture',
+                                        'limit' => 200
                                     ]);
 
                                     // Log completo de la respuesta para debugging
