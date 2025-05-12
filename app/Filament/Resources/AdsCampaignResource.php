@@ -13,6 +13,8 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 use App\Services\MetaAdsService;
+use App\Filament\Resources\ClientResource\RelationManagers\FanpageRelationManager;
+use FFI;
 
 class AdsCampaignResource extends Resource
 {
@@ -115,7 +117,7 @@ class AdsCampaignResource extends Resource
     public static function getRelations(): array
     {
         return [
-            //
+            // FanpageRelationManager::class,
         ];
     }
 

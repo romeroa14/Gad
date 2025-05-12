@@ -27,6 +27,11 @@ class Client extends Model
         return $this->hasMany(AdsCampaign::class);
     }
 
+    public function fanpages()
+    {
+        return $this->hasMany(FanPage::class);
+    }
+
     public function bills()
     {
         return $this->hasMany(Bill::class);
