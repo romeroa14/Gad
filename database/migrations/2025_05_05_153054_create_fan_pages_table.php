@@ -14,6 +14,7 @@ return new class extends Migration
         Schema::create('fan_pages', function (Blueprint $table) {
             $table->id();
             $table->string('facebook_page_id')->unique(); // ID único de la página en Facebook
+            $table->string('instagram_account_id')->unique(); // ID único de la cuenta en Instagram
             // $table->string('name'); // Nombre de la fanpage
             $table->string('category')->nullable(); // Categoría de la fanpage
             $table->string('picture_url')->nullable(); // URL de la imagen de perfil

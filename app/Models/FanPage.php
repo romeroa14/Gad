@@ -11,6 +11,7 @@ class FanPage extends Model
 
     protected $fillable = [
         'facebook_page_id',
+        'instagram_account_id',
         // 'name',
         'category',
         'picture_url',
