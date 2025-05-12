@@ -50,10 +50,13 @@ class FanpageRelationManager extends RelationManager
                                 'limit' => 200,
                             ]);
 
+                            // Log::info('Respuesta de fanpages', ['response' => $response->json()]);
+
                             if ($response->successful()) {
                                 $pages = $response->json('data', []);
                                 return collect($pages)->pluck('name', 'id')->toArray();
                             }
+
 
                             Log::error('Error al obtener fanpages', ['response' => $response->json()]);
                             return [];

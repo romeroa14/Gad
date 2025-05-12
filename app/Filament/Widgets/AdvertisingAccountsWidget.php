@@ -92,38 +92,34 @@ class AdvertisingAccountsWidget extends Widget
     public function selectAccount($accountId)
     {
         try {
-            // Buscar la cuenta publicitaria
-            $account = AdvertisingAccount::find($accountId);
-            
-            if (!$account) {
-                Notification::make()
-                    ->title('Cuenta no encontrada')
-                    ->danger()
-                    ->send();
-                return;
+            // Verificar qué tipo de ID estamos recibiendo
+            if (is_string($accountId) && str_starts_with($accountId, 'act_')) {
+                // Es un account_id de Facebook, buscar el registro correspondiente
+                $account = AdvertisingAccount::where('account_id', $accountId)->first();
+                
+                if (!$account) {
+                    // Si no existe, crearlo
+                    // (Implementación depende de tus datos disponibles)
+                    throw new \Exception("La cuenta publicitaria con ID {$accountId} no existe en la base de datos");
+                }
+                
+                // Guardar el ID de la base de datos en la sesión
+                session(['selected_advertising_account_id' => $account->id]);
+                // Guardar también el account_id de Facebook por si es necesario
+                session(['selected_advertising_account_fb_id' => $accountId]);
+                
+                // Actualizar la propiedad local con el ID de la base de datos
+                $this->selectedAccountId = $account->id;
+            } else {
+                // Es un ID de la base de datos
+                $account = AdvertisingAccount::findOrFail($accountId);
+                
+                // Guardar en sesión
+                session(['selected_advertising_account_id' => $accountId]);
+                session(['selected_advertising_account_fb_id' => $account->account_id]);
+                
+                $this->selectedAccountId = $accountId;
             }
-            
-            // Verificar que tenga account_id válido
-            if (empty($account->account_id)) {
-                Notification::make()
-                    ->title('Error en la cuenta')
-                    ->body('La cuenta seleccionada no tiene un ID de Facebook válido')
-                    ->danger()
-                    ->send();
-                return;
-            }
-            
-            // Guardar la ID de la cuenta en la sesión
-            session(['selected_advertising_account_id' => $accountId]);
-            
-            // Actualizar la propiedad local
-            $this->selectedAccountId = $accountId;
-            
-            // Guardar información adicional útil
-            session([
-                'selected_advertising_account_name' => $account->name,
-                'selected_advertising_account_fb_id' => $account->account_id
-            ]);
             
             // Notificar al usuario
             Notification::make()
@@ -135,12 +131,12 @@ class AdvertisingAccountsWidget extends Widget
             // Registrar esta acción
             Log::info('Cuenta publicitaria seleccionada', [
                 'user_id' => auth()->id(),
-                'account_id' => $accountId,
+                'account_id' => $account->id,
                 'account_name' => $account->name,
                 'facebook_account_id' => $account->account_id
             ]);
             
-            $this->dispatch('account-selected', accountId: $accountId);
+            $this->dispatch('account-selected', accountId: $account->id);
         } catch (\Exception $e) {
             Log::error('Error al seleccionar cuenta publicitaria', [
                 'error' => $e->getMessage(),
@@ -232,6 +228,13 @@ class AdvertisingAccountsWidget extends Widget
             return null;
         }
         
+        // Si el ID seleccionado comienza con 'act_', se está usando el account_id de Facebook
+        if (is_string($this->selectedAccountId) && str_starts_with($this->selectedAccountId, 'act_')) {
+            // Buscar por account_id en lugar de id
+            return AdvertisingAccount::where('account_id', $this->selectedAccountId)->first();
+        }
+        
+        // De lo contrario, asumimos que es un ID de la base de datos
         return AdvertisingAccount::find($this->selectedAccountId);
     }
 } 
