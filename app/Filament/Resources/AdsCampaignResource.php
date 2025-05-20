@@ -192,68 +192,120 @@ class AdsCampaignResource extends Resource
                         
                         // Usar meta_insights si está disponible
                         if (!empty($record->meta_insights)) {
-                            // Facebook Page
-                            if (!empty($record->meta_insights['page_name'])) {
+                            $hasFacebook = !empty($record->meta_insights['page_id']);
+                            $hasInstagram = !empty($record->meta_insights['instagram_account_id']);
+                            
+                            // Caso 1: Tenemos tanto Facebook como Instagram
+                            if ($hasFacebook && $hasInstagram) {
                                 $pageId = $record->meta_insights['page_id'] ?? 'Sin ID';
-                                $pageName = $record->meta_insights['page_name'];
-                                $result = new HtmlString("<strong>[FB]</strong> {$pageName}<br><span class='text-xs text-gray-500'>ID: {$pageId}</span>");
-                                Cache::put($cacheKey, $result, now()->addHours(24));
-                                return $result;
-                            }
-                            
-                            // Instagram Account
-                            if (!empty($record->meta_insights['instagram_username'])) {
+                                $pageName = $record->meta_insights['page_name'] ?? 'Sin nombre';
+                                
                                 $igId = $record->meta_insights['instagram_account_id'] ?? 'Sin ID';
-                                $igUsername = $record->meta_insights['instagram_username'];
-                                $result = new HtmlString("<strong>[IG]</strong> {$igUsername}<br><span class='text-xs text-gray-500'>ID: {$igId}</span>");
+                                $igUsername = $record->meta_insights['instagram_username'] ?? 'Sin nombre';
+                                
+                                $result = new HtmlString(
+                                    "<strong>[FB]</strong> {$pageName}<br>".
+                                    "<span class='text-xs text-gray-500'>ID: {$pageId}</span><br>".
+                                    "<strong>[IG]</strong> {$igUsername}<br>".
+                                    "<span class='text-xs text-gray-500'>ID: {$igId}</span>"
+                                );
+                                
                                 Cache::put($cacheKey, $result, now()->addHours(24));
                                 return $result;
                             }
                             
-                            // Solo tenemos IDs pero no nombres
-                            if (!empty($record->meta_insights['page_id'])) {
+                            // Caso 2: Solo Facebook
+                            if ($hasFacebook) {
                                 $pageId = $record->meta_insights['page_id'];
-                                $result = new HtmlString("<strong>[FB]</strong> Sin nombre<br><span class='text-xs text-gray-500'>ID: {$pageId}</span>");
+                                $pageName = $record->meta_insights['page_name'] ?? 'Sin nombre';
+                                
+                                $result = new HtmlString(
+                                    "<strong>[FB]</strong> {$pageName}<br>".
+                                    "<span class='text-xs text-gray-500'>ID: {$pageId}</span>"
+                                );
+                                
                                 Cache::put($cacheKey, $result, now()->addHours(24));
                                 return $result;
                             }
                             
-                            if (!empty($record->meta_insights['instagram_account_id'])) {
+                            // Caso 3: Solo Instagram
+                            if ($hasInstagram) {
                                 $igId = $record->meta_insights['instagram_account_id'];
-                                $result = new HtmlString("<strong>[IG]</strong> Sin nombre<br><span class='text-xs text-gray-500'>ID: {$igId}</span>");
+                                $igUsername = $record->meta_insights['instagram_username'] ?? 'Sin nombre';
+                                
+                                $result = new HtmlString(
+                                    "<strong>[IG]</strong> {$igUsername}<br>".
+                                    "<span class='text-xs text-gray-500'>ID: {$igId}</span>"
+                                );
+                                
                                 Cache::put($cacheKey, $result, now()->addHours(24));
                                 return $result;
                             }
                         }
                         
-                        // Si no tenemos datos, mostrar cliente como fallback
+                        // Caso 4: No hay información de redes sociales
                         if ($record->client) {
-                            $result = new HtmlString("Cliente: {$record->client->name}<br><span class='text-xs text-gray-500'>Sin cuenta asociada</span>");
+                            $result = new HtmlString(
+                                "Cliente: {$record->client->name}<br>".
+                                "<span class='text-xs text-gray-500'>Sin cuentas asociadas</span>"
+                            );
+                            
                             Cache::put($cacheKey, $result, now()->addHours(1));
                             return $result;
                         }
                         
                         // Último recurso
-                        $result = new HtmlString("Sin asignar<br><span class='text-xs text-gray-500'>Sin cuenta asociada</span>");
+                        $result = new HtmlString(
+                            "Sin asignar<br>".
+                            "<span class='text-xs text-gray-500'>Sin cuentas asociadas</span>"
+                        );
+                        
                         Cache::put($cacheKey, $result, now()->addHours(1));
                         return $result;
                     })
-                    ->html() // Importante: permitir contenido HTML
+                    ->html()
                     ->searchable(false)
                     ->sortable(false)
                     ->wrap()
                     ->icon(function (AdsCampaign $record) {
-                        if (!empty($record->meta_insights['page_id'])) {
-                            return 'heroicon-o-globe-alt';
-                        }
-                        
-                        if (!empty($record->meta_insights['instagram_account_id'])) {
-                            return 'heroicon-o-camera';
+                        if (!empty($record->meta_insights)) {
+                            $hasFacebook = !empty($record->meta_insights['page_id']);
+                            $hasInstagram = !empty($record->meta_insights['instagram_account_id']);
+                            
+                            // Si tenemos ambos, mostrar un icono diferente
+                            if ($hasFacebook && $hasInstagram) {
+                                return 'heroicon-o-rectangle-stack';
+                            }
+                            
+                            if ($hasFacebook) {
+                                return 'heroicon-o-globe-alt';
+                            }
+                            
+                            if ($hasInstagram) {
+                                return 'heroicon-o-camera';
+                            }
                         }
                         
                         return 'heroicon-o-question-mark-circle';
                     })
-                    ->iconPosition('before'),
+                    ->iconPosition('before')
+                    ->tooltip(function (AdsCampaign $record) {
+                        $tooltipParts = [];
+                        
+                        if (!empty($record->meta_insights['page_id'])) {
+                            $tooltipParts[] = "Facebook ID: " . $record->meta_insights['page_id'];
+                            
+                            if (!empty($record->meta_insights['page_link'])) {
+                                $tooltipParts[] = "Link: " . $record->meta_insights['page_link'];
+                            }
+                        }
+                        
+                        if (!empty($record->meta_insights['instagram_account_id'])) {
+                            $tooltipParts[] = "Instagram ID: " . $record->meta_insights['instagram_account_id'];
+                        }
+                        
+                        return !empty($tooltipParts) ? implode("\n", $tooltipParts) : null;
+                    }),
                     
                 Tables\Columns\TextColumn::make('status')
                     ->label('Estado')
