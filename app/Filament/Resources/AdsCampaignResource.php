@@ -12,6 +12,9 @@ use Filament\Resources\Resource;
 use Illuminate\Support\HtmlString;
 use App\Services\FacebookAds\FacebookAdsService;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Cache;
+
 class AdsCampaignResource extends Resource
 {
     protected static ?string $model = AdsCampaign::class;
@@ -65,8 +68,10 @@ class AdsCampaignResource extends Resource
                     ->requiresConfirmation()
                     ->action(function() use ($selectedAccount) {
                         try {
-                            $service = new FacebookAdsService();
-                            $campaigns = $service->getCampaigns($selectedAccount->account_id);
+                            $service = new FacebookAdsService($selectedAccount->account_id);
+                            
+                            // Usar el método mejorado para obtener la jerarquía completa con page_id e instagram_id
+                            $campaigns = $service->getCampaignsWithAdsHierarchy();
                             
                             // Obtener un cliente y plan por defecto
                             $defaultClient = \App\Models\Client::first();
@@ -81,6 +86,7 @@ class AdsCampaignResource extends Resource
                             }
                             
                             $importedCount = 0;
+                            $updatedWithInsightsCount = 0;
                             
                             // Log para debug
                             Log::info('Iniciando importación de campañas', [
@@ -89,9 +95,6 @@ class AdsCampaignResource extends Resource
                             ]);
                             
                             foreach ($campaigns as $campaignData) {
-                                // Mostrar datos para debug
-                                Log::info('Procesando campaña', ['data' => $campaignData]);
-                                
                                 // Procesar fechas
                                 $startDate = !empty($campaignData['start_time']) 
                                     ? date('Y-m-d', strtotime($campaignData['start_time'])) 
@@ -101,27 +104,53 @@ class AdsCampaignResource extends Resource
                                     ? date('Y-m-d', strtotime($campaignData['stop_time'])) 
                                     : now()->addDays(30)->format('Y-m-d');
                                 
-                                // Asegurar que todos los campos obligatorios estén incluidos
-                                AdsCampaign::updateOrCreate(
+                                // Compilar toda la información para meta_insights
+                                $metaInsights = [
+                                    'page_id' => $campaignData['page_id'] ?? null,
+                                    'page_name' => $campaignData['page_name'] ?? null,
+                                    'page_link' => $campaignData['page_link'] ?? null,
+                                    'instagram_account_id' => $campaignData['instagram_account_id'] ?? null,
+                                    'instagram_username' => $campaignData['instagram_username'] ?? null,
+                                ];
+                                
+                                // Log de debugging para ver qué información tenemos para esta campaña
+                                if (!empty($metaInsights['page_id']) || !empty($metaInsights['instagram_account_id'])) {
+                                    Log::info("Datos encontrados para campaña {$campaignData['id']}", [
+                                        'campaign' => $campaignData['name'],
+                                        'page_id' => $metaInsights['page_id'],
+                                        'page_name' => $metaInsights['page_name'],
+                                        'instagram_id' => $metaInsights['instagram_account_id'],
+                                        'instagram_username' => $metaInsights['instagram_username']
+                                    ]);
+                                    $updatedWithInsightsCount++;
+                                }
+                                
+                                // Crear o actualizar la campaña
+                                $campaign = AdsCampaign::updateOrCreate(
                                     ['meta_campaign_id' => $campaignData['id']],
                                     [
                                         'name' => $campaignData['name'],
                                         'client_id' => $defaultClient->id,
                                         'plan_id' => $defaultPlan->id,
                                         'advertising_account_id' => $selectedAccount->id,
-                                        'status' => $campaignData['status'] ?? 'ACTIVE',
-                                        'budget' => 0,                          // Valor predeterminado
-                                        'actual_cost' => 0,                     // Valor predeterminado
+                                        'status' => strtolower($campaignData['status']) ?? 'active',
+                                        'budget' => 0,                   // Valor predeterminado
+                                        'actual_cost' => 0,              // Valor predeterminado
                                         'start_date' => $startDate,
                                         'end_date' => $endDate,
+                                        'meta_insights' => $metaInsights, // Guardar toda la información recolectada
                                     ]
                                 );
+                                
+                                // Limpiar caché para esta campaña
+                                Cache::forget("campaign_fanpage_{$campaign->id}");
                                 
                                 $importedCount++;
                             }
                             
                             \Filament\Notifications\Notification::make()
-                                ->title("$importedCount campañas sincronizadas")
+                                ->title("Campañas sincronizadas")
+                                ->body("{$importedCount} campañas en total, {$updatedWithInsightsCount} con información de página/Instagram")
                                 ->success()
                                 ->send();
                         } catch (\Exception $e) {
@@ -151,8 +180,80 @@ class AdsCampaignResource extends Resource
                     ->label('ID de Meta')
                     ->sortable(),
                
-                    
-                    
+                Tables\Columns\TextColumn::make('fanpage')
+                    ->label('Fanpage/Instagram')
+                    ->getStateUsing(function (AdsCampaign $record) {
+                        // Cache key para evitar consultas repetidas
+                        $cacheKey = "campaign_fanpage_{$record->id}";
+                        
+                        if (Cache::has($cacheKey)) {
+                            return Cache::get($cacheKey);
+                        }
+                        
+                        // Usar meta_insights si está disponible
+                        if (!empty($record->meta_insights)) {
+                            // Facebook Page
+                            if (!empty($record->meta_insights['page_name'])) {
+                                $pageId = $record->meta_insights['page_id'] ?? 'Sin ID';
+                                $pageName = $record->meta_insights['page_name'];
+                                $result = new HtmlString("<strong>[FB]</strong> {$pageName}<br><span class='text-xs text-gray-500'>ID: {$pageId}</span>");
+                                Cache::put($cacheKey, $result, now()->addHours(24));
+                                return $result;
+                            }
+                            
+                            // Instagram Account
+                            if (!empty($record->meta_insights['instagram_username'])) {
+                                $igId = $record->meta_insights['instagram_account_id'] ?? 'Sin ID';
+                                $igUsername = $record->meta_insights['instagram_username'];
+                                $result = new HtmlString("<strong>[IG]</strong> {$igUsername}<br><span class='text-xs text-gray-500'>ID: {$igId}</span>");
+                                Cache::put($cacheKey, $result, now()->addHours(24));
+                                return $result;
+                            }
+                            
+                            // Solo tenemos IDs pero no nombres
+                            if (!empty($record->meta_insights['page_id'])) {
+                                $pageId = $record->meta_insights['page_id'];
+                                $result = new HtmlString("<strong>[FB]</strong> Sin nombre<br><span class='text-xs text-gray-500'>ID: {$pageId}</span>");
+                                Cache::put($cacheKey, $result, now()->addHours(24));
+                                return $result;
+                            }
+                            
+                            if (!empty($record->meta_insights['instagram_account_id'])) {
+                                $igId = $record->meta_insights['instagram_account_id'];
+                                $result = new HtmlString("<strong>[IG]</strong> Sin nombre<br><span class='text-xs text-gray-500'>ID: {$igId}</span>");
+                                Cache::put($cacheKey, $result, now()->addHours(24));
+                                return $result;
+                            }
+                        }
+                        
+                        // Si no tenemos datos, mostrar cliente como fallback
+                        if ($record->client) {
+                            $result = new HtmlString("Cliente: {$record->client->name}<br><span class='text-xs text-gray-500'>Sin cuenta asociada</span>");
+                            Cache::put($cacheKey, $result, now()->addHours(1));
+                            return $result;
+                        }
+                        
+                        // Último recurso
+                        $result = new HtmlString("Sin asignar<br><span class='text-xs text-gray-500'>Sin cuenta asociada</span>");
+                        Cache::put($cacheKey, $result, now()->addHours(1));
+                        return $result;
+                    })
+                    ->html() // Importante: permitir contenido HTML
+                    ->searchable(false)
+                    ->sortable(false)
+                    ->wrap()
+                    ->icon(function (AdsCampaign $record) {
+                        if (!empty($record->meta_insights['page_id'])) {
+                            return 'heroicon-o-globe-alt';
+                        }
+                        
+                        if (!empty($record->meta_insights['instagram_account_id'])) {
+                            return 'heroicon-o-camera';
+                        }
+                        
+                        return 'heroicon-o-question-mark-circle';
+                    })
+                    ->iconPosition('before'),
                     
                 Tables\Columns\TextColumn::make('status')
                     ->label('Estado')
@@ -224,6 +325,7 @@ class AdsCampaignResource extends Resource
                     })
                     ->openUrlInNewTab()
                     ->visible(fn (AdsCampaign $record) => !empty($record->meta_campaign_id)),
+                
             ])
             ->bulkActions([
                 // Normalmente no necesitamos acciones masivas para campañas de Facebook
