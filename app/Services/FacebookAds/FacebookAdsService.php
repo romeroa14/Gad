@@ -130,6 +130,9 @@ class FacebookAdsService
     public function getCampaigns()
     {
         try {
+            // Log la solicitud
+            Log::info("Solicitando campañas para la cuenta: {$this->adAccountId}");
+            
             $fields = [
                 'id',
                 'name',
@@ -163,6 +166,9 @@ class FacebookAdsService
                     'lifetime_budget' => $campaign->lifetime_budget ?? null,
                 ];
             }
+            
+            // Log la respuesta
+            Log::info("Respuesta de la API de Facebook:", ['data' => $result]);
             
             return $result;
         } catch (\Exception $e) {

@@ -3,27 +3,36 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Log;
+use App\Services\FacebookAds\FacebookAdsService;
+use App\Models\Client;
 
 class AdsCampaign extends Model
 {
     protected $fillable = [
         'name',
         'client_id',
-        'plan',
+        'plan_id',
+        'advertising_account_id',
+        'meta_campaign_id',
         'start_date',
         'end_date',
         'budget',
-        'real_cost',
+        'actual_cost',
+        'cost_per_conversion',
         'status',
-        'meta_campaign_id',
-        'last_synced_at'
+        'last_synced_at',
+        'meta_insights'
     ];
 
     protected $casts = [
-        'start_date' => 'datetime',
-        'end_date' => 'datetime',
+        'start_date' => 'date',
+        'end_date' => 'date',
         'last_synced_at' => 'datetime',
-        'meta_insights' => 'array'
+        'meta_insights' => 'array',
+        'budget' => 'decimal:2',
+        'actual_cost' => 'decimal:2',
+        'cost_per_conversion' => 'decimal:2'
     ];
 
     public function client()
@@ -31,53 +40,41 @@ class AdsCampaign extends Model
         return $this->belongsTo(Client::class);
     }
 
-    public function metrics()
+    public function plan()
     {
-        return $this->hasMany(CampaignMetric::class);
+        return $this->belongsTo(Plan::class);
     }
 
-    public function syncWithMetaAds()
+    public function advertisingAccount()
     {
-        if (!$this->meta_campaign_id) {
-            return;
-        }
+        return $this->belongsTo(AdvertisingAccount::class);
+    }
 
+    public function syncWithFacebook()
+    {
+        if (!$this->meta_campaign_id || !$this->advertising_account_id) {
+            return false;
+        }
+        
         try {
-            $metaAdsService = new MetaAdsService();
-            $data = $metaAdsService->getCampaignData($this->meta_campaign_id);
-
-            // Actualizar datos de la campaña
-            $this->update([
-                'real_cost' => $data['campaign']['spend'] ?? 0,
-                'status' => $this->mapMetaStatus($data['campaign']['status']),
-                'last_synced_at' => now(),
-            ]);
-
-            // Guardar métricas
-            if (isset($data['insights'][0])) {
-                $this->metrics()->create([
-                    'date' => now()->toDateString(),
-                    'impressions' => $data['insights'][0]['impressions'],
-                    'clicks' => $data['insights'][0]['clicks'],
-                    'ctr' => $data['insights'][0]['ctr'],
-                    'spend' => $data['insights'][0]['spend'],
-                    'reach' => $data['insights'][0]['reach'],
-                ]);
+            $service = new FacebookAdsService();
+            $insights = $service->getCampaignInsights($this->advertising_account_id, $this->meta_campaign_id);
+            
+            if (empty($insights)) {
+                return false;
             }
+            
+            $this->update([
+                'actual_cost' => $insights['spend'] ?? $this->actual_cost,
+                'cost_per_conversion' => $insights['cost_per_conversion'] ?? $this->cost_per_conversion,
+                'last_synced_at' => now(),
+                'meta_insights' => $insights,
+            ]);
+            
+            return true;
         } catch (\Exception $e) {
-            \Log::error("Error syncing campaign {$this->id}: " . $e->getMessage());
+            Log::error("Error syncing campaign {$this->id}: " . $e->getMessage());
+            return false;
         }
-    }
-
-    private function mapMetaStatus($metaStatus)
-    {
-        $statusMap = [
-            'ACTIVE' => 'active',
-            'PAUSED' => 'paused',
-            'COMPLETED' => 'completed',
-            // ... otros estados
-        ];
-
-        return $statusMap[$metaStatus] ?? 'unknown';
     }
 }

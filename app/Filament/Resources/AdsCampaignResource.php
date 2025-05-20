@@ -3,38 +3,26 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\AdsCampaignResource\Pages;
-use App\Filament\Resources\AdsCampaignResource\RelationManagers;
 use App\Models\AdsCampaign;
 use App\Models\AdvertisingAccount;
 use Filament\Forms;
-use Filament\Forms\Form;
-use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Facades\Session;
-use Illuminate\Support\Facades\Http;
+use Filament\Resources\Resource;
 use Illuminate\Support\HtmlString;
-// use App\Services\MetaAdsService;
 use App\Services\FacebookAds\FacebookAdsService;
-use App\Filament\Resources\ClientResource\RelationManagers\FanpageRelationManager;
-use FFI;
-
+use Illuminate\Support\Facades\Log;
 class AdsCampaignResource extends Resource
 {
     protected static ?string $model = AdsCampaign::class;
-
-    protected static ?string $navigationIcon = 'heroicon-o-folder';
-    protected static ?string $navigationLabel = 'Campañas Publicitarias';
-    protected static ?string $pluralModelLabel = 'Campañas Publicitarias';
-    protected static ?int $navigationSort = 2;
-
+    protected static ?string $navigationIcon = 'heroicon-o-megaphone';
+    protected static ?string $navigationLabel = 'Campañas de Facebook';
+    protected static ?string $pluralModelLabel = 'Campañas de Facebook';
+    
     public static function getAdvertisingAccounts()
     {
         $metaAdsService = new FacebookAdsService();
-        $accounts = $metaAdsService->getAdvertisingAccounts() ?? [];
-        
-        return $accounts;
+        return $metaAdsService->getAdvertisingAccounts() ?? [];
     }
     
     public static function getSelectedAdvertisingAccount()
@@ -44,244 +32,212 @@ class AdsCampaignResource extends Resource
             return null;
         }
         
-        // Verifica si el ID comienza con 'act_' (formato de Facebook)
-        if (is_string($selectedAccountId) && str_starts_with($selectedAccountId, 'act_')) {
-            // Buscar por account_id en lugar de id
-            return AdvertisingAccount::where('account_id', $selectedAccountId)->first();
-        }
-        
-        // Si no comienza con 'act_', asumimos que es un ID de la base de datos
-        return AdvertisingAccount::find($selectedAccountId);
+        return AdvertisingAccount::find($selectedAccountId) ?? 
+               AdvertisingAccount::where('account_id', $selectedAccountId)->first();
     }
-
-    public static function form(Form $form): Form
+    
+    public static function table(Table $table): Table
     {
         $selectedAccount = self::getSelectedAdvertisingAccount();
+        $selectedClientId = session('selected_client_id');
         
-        return $form
-            ->schema([
-                Forms\Components\Section::make('Cuenta Publicitaria')
-                    ->schema([
-                        Forms\Components\Select::make('advertising_account_id')
-                            ->label('Seleccionar cuenta publicitaria')
-                            ->options(function () {
-                                $accounts = self::getAdvertisingAccounts();
-                                
-                                $options = [];
-                                foreach ($accounts as $account) {
-                                    $options[$account['id']] = "{$account['name']} ({$account['account_id']})";
-                                }
-                                
-                                return $options;
-                            })
-                            ->default(session('selected_advertising_account_id'))
-                            ->reactive()
-                            ->afterStateUpdated(function ($state, $set) {
-                                session(['selected_advertising_account_id' => $state]);
-                            })
-                            ->helperText('Esta selección afectará globalmente a toda la aplicación'),
+        if (!$selectedAccount) {
+            // Si no hay cuenta seleccionada, mostrar mensaje informativo
+            return $table
+                ->query(AdsCampaign::query()->where('id', 0))
+                ->emptyStateHeading('No hay cuenta publicitaria seleccionada');
+        }
+        
+        // Construir la consulta base
+        $query = AdsCampaign::query()->where('advertising_account_id', $selectedAccount->id);
+        
+        // Añadir filtro por cliente si está seleccionado
+        if ($selectedClientId) {
+            $query->where('client_id', $selectedClientId);
+        }
+        
+        return $table
+            ->query($query)
+            ->headerActions([
+                Tables\Actions\Action::make('syncCampaigns')
+                    ->label('Sincronizar Campañas')
+                    ->icon('heroicon-o-arrow-path')
+                    ->requiresConfirmation()
+                    ->action(function() use ($selectedAccount) {
+                        try {
+                            $service = new FacebookAdsService();
+                            $campaigns = $service->getCampaigns($selectedAccount->account_id);
                             
-                        Forms\Components\Placeholder::make('account_info')
-                            ->label('Información de la cuenta')
-                            ->content(function () use ($selectedAccount) {
-                                if (!$selectedAccount) {
-                                    return 'No hay una cuenta publicitaria seleccionada';
-                                }
+                            // Obtener un cliente y plan por defecto
+                            $defaultClient = \App\Models\Client::first();
+                            $defaultPlan = \App\Models\Plan::first();
+                            
+                            if (!$defaultClient) {
+                                throw new \Exception('Necesitas crear al menos un cliente antes de importar campañas');
+                            }
+                            
+                            if (!$defaultPlan) {
+                                throw new \Exception('Necesitas crear al menos un plan antes de importar campañas');
+                            }
+                            
+                            $importedCount = 0;
+                            
+                            // Log para debug
+                            Log::info('Iniciando importación de campañas', [
+                                'cuenta' => $selectedAccount->name, 
+                                'total_campañas' => count($campaigns)
+                            ]);
+                            
+                            foreach ($campaigns as $campaignData) {
+                                // Mostrar datos para debug
+                                Log::info('Procesando campaña', ['data' => $campaignData]);
                                 
-                                $statusLabels = [
-                                    1 => '<span class="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium">Activo</span>',
-                                    2 => '<span class="px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-medium">Deshabilitado</span>',
-                                    0 => '<span class="px-2 py-1 bg-red-100 text-red-800 rounded-full text-xs font-medium">Inactivo</span>',
-                                ];
+                                // Procesar fechas
+                                $startDate = !empty($campaignData['start_time']) 
+                                    ? date('Y-m-d', strtotime($campaignData['start_time'])) 
+                                    : now()->format('Y-m-d');
+                                    
+                                $endDate = !empty($campaignData['stop_time']) 
+                                    ? date('Y-m-d', strtotime($campaignData['stop_time'])) 
+                                    : now()->addDays(30)->format('Y-m-d');
                                 
-                                $statusHtml = $statusLabels[$selectedAccount->status] ?? 'Desconocido';
-                                
-                                return new HtmlString(
-                                    "<div class='space-y-1'>
-                                        <div class='font-medium'>{$selectedAccount->name}</div>
-                                        <div class='text-sm text-gray-600'>ID: {$selectedAccount->account_id}</div>
-                                        <div class='text-sm text-gray-600'>Moneda: {$selectedAccount->currency}</div>
-                                        <div class='text-sm text-gray-600'>Estado: {$statusHtml}</div>
-                                        <div class='text-sm text-gray-600'>Zona horaria: {$selectedAccount->timezone}</div>
-                                        <div class='mt-2'>
-                                            <a href='https://www.facebook.com/adsmanager/manage/campaigns?act={$selectedAccount->account_id}' 
-                                               target='_blank'
-                                               class='text-sm text-primary-600 hover:text-primary-800 inline-flex items-center'>
-                                                <svg class='w-3.5 h-3.5 mr-1' fill='none' stroke='currentColor' viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'>
-                                                    <path stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14'></path>
-                                                </svg>
-                                                Ver en Ads Manager
-                                            </a>
-                                        </div>
-                                    </div>"
+                                // Asegurar que todos los campos obligatorios estén incluidos
+                                AdsCampaign::updateOrCreate(
+                                    ['meta_campaign_id' => $campaignData['id']],
+                                    [
+                                        'name' => $campaignData['name'],
+                                        'client_id' => $defaultClient->id,
+                                        'plan_id' => $defaultPlan->id,
+                                        'advertising_account_id' => $selectedAccount->id,
+                                        'status' => $campaignData['status'] ?? 'ACTIVE',
+                                        'budget' => 0,                          // Valor predeterminado
+                                        'actual_cost' => 0,                     // Valor predeterminado
+                                        'start_date' => $startDate,
+                                        'end_date' => $endDate,
+                                    ]
                                 );
-                            }),
-                    ])
-                    ->collapsible(),
-                
-                Forms\Components\TextInput::make('name')
-                    ->label('Nombre de la Campaña')
-                    ->required(),
-                
-                Forms\Components\Select::make('client_id')
-                    ->label('Cliente')
-                    ->relationship('client', 'name')
-                    ->searchable()
-                    ->required(),
-
-                Forms\Components\Select::make('plan')
-                    ->label('Plan')
-                    ->options([
-                        'basic' => 'Básico',
-                        'premium' => 'Premium',
-                        'enterprise' => 'Empresarial'
-                    ])
-                    ->required(),
-
-                Forms\Components\DatePicker::make('start_date')
-                    ->label('Fecha de Inicio')
-                    ->required(),
-
-                Forms\Components\DatePicker::make('end_date')
-                    ->label('Fecha de Fin')
-                    ->required(),
-
-                Forms\Components\TextInput::make('budget')
-                    ->label('Presupuesto')
-                    ->numeric()
-                    ->required(),
-
-                Forms\Components\TextInput::make('meta_campaign_id')
-                    ->label('ID de Campaña en Meta')
-                    ->helperText('Opcional - Para sincronización con Meta Ads')
-                    ->rules(['nullable', function($attribute, $value, $fail) use ($selectedAccount) {
-                        if ($value && !(new MetaAdsService())->validateCampaignExists($value, $selectedAccount?->account_id)) {
-                            $fail('La campaña no existe en Meta Ads o no pertenece a la cuenta seleccionada');
+                                
+                                $importedCount++;
+                            }
+                            
+                            \Filament\Notifications\Notification::make()
+                                ->title("$importedCount campañas sincronizadas")
+                                ->success()
+                                ->send();
+                        } catch (\Exception $e) {
+                            Log::error('Error en sincronización: ' . $e->getMessage());
+                            
+                            \Filament\Notifications\Notification::make()
+                                ->title('Error')
+                                ->body($e->getMessage())
+                                ->danger()
+                                ->send();
                         }
-                    }]),
-
-                Forms\Components\Select::make('status')
+                    })
+            ])
+            ->columns([
+                Tables\Columns\TextColumn::make('name')
+                    ->label('Nombre')
+                    ->searchable()
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('client.name')
+                    ->label('Cliente')
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('plan.name')
+                    ->label('Plan')
+                    ->sortable(),
+                
+                Tables\Columns\TextColumn::make('meta_campaign_id')
+                    ->label('ID de Meta')
+                    ->sortable(),
+               
+                    
+                    
+                    
+                Tables\Columns\TextColumn::make('status')
+                    ->label('Estado')
+                    ->badge()
+                    ->sortable()
+                    ->formatStateUsing(fn (string $state): string => ucfirst($state))
+                    ->color(fn (string $state): string => 
+                        match ($state) {
+                            'active' => 'success',
+                            'paused' => 'warning',
+                            'completed' => 'info',
+                            default => 'gray',
+                        }
+                    ),
+                    
+                Tables\Columns\TextColumn::make('start_date')
+                    ->label('Inicio')
+                    ->date()
+                    ->sortable(),
+                    
+                Tables\Columns\TextColumn::make('end_date')
+                    ->label('Fin')
+                    ->date()
+                    ->sortable(),
+                    
+                Tables\Columns\TextColumn::make('budget')
+                    ->label('Presupuesto')
+                    ->money('usd')
+                    ->sortable(),
+                    
+                Tables\Columns\TextColumn::make('actual_cost')
+                    ->label('Gasto')
+                    ->money('usd')
+                    ->sortable(),
+            ])
+            ->filters([
+                Tables\Filters\SelectFilter::make('status')
                     ->label('Estado')
                     ->options([
                         'active' => 'Activa',
                         'paused' => 'Pausada',
                         'completed' => 'Completada'
                     ])
-                    ->required(),
-            ]);
-    }
-
-    public static function table(Table $table): Table
-    {
-        $selectedAccount = self::getSelectedAdvertisingAccount();
-        $accountInfoHtml = '';
-        
-        if ($selectedAccount) {
-            $accountInfoHtml = "
-                <div class='mb-4 p-4 bg-white rounded-lg shadow'>
-                    <div class='flex justify-between items-center'>
-                        <div>
-                            <h3 class='text-lg font-medium'>Cuenta: {$selectedAccount->name}</h3>
-                            <p class='text-sm text-gray-600'>ID: {$selectedAccount->account_id}</p>
-                        </div>
-                        <a href='https://www.facebook.com/adsmanager/manage/campaigns?act={$selectedAccount->account_id}' 
-                           target='_blank'
-                           class='text-sm text-primary-600 hover:text-primary-800 inline-flex items-center'>
-                            Ver en Ads Manager
-                        </a>
-                    </div>
-                </div>
-            ";
-        }
-        
-        return $table
-            ->headerActions([
-                Tables\Actions\Action::make('cambiarCuenta')
-                    ->label('Cambiar Cuenta Publicitaria')
-                    ->icon('heroicon-o-credit-card')
-                    ->modalHeading('Seleccionar Cuenta Publicitaria')
-                    ->modalSubmitActionLabel('Seleccionar Cuenta')
-                    ->form([
-                        Forms\Components\Select::make('advertising_account_id')
-                            ->label('Cuenta Publicitaria')
-                            ->options(function () {
-                                $accounts = self::getAdvertisingAccounts();
-                                $options = [];
-                                foreach ($accounts as $account) {
-                                    $options[$account['id']] = "{$account['name']} ({$account['account_id']})";
-                                }
-                                return $options;
-                            })
-                            ->default(session('selected_advertising_account_id'))
-                            ->required(),
-                    ])
-                    ->action(function (array $data): void {
-                        $accountData = collect(self::getAdvertisingAccounts())
-                            ->firstWhere('id', $data['advertising_account_id']);
-                            
-                        if ($accountData) {
-                            // Si la cuenta no existe en la DB, crearla primero
-                            if (!$accountData['id']) {
-                                $dbAccount = AdvertisingAccount::updateOrCreate(
-                                    ['account_id' => $accountData['account_id']],
-                                    [
-                                        'name' => $accountData['name'],
-                                        'status' => $accountData['status'],
-                                        'currency' => $accountData['currency'],
-                                        'timezone' => $accountData['timezone'],
-                                    ]
-                                );
-                                session(['selected_advertising_account_id' => $dbAccount->id]);
-                            } else {
-                                session(['selected_advertising_account_id' => $accountData['id']]);
-                            }
-                            
-                            session(['selected_advertising_account_fb_id' => $accountData['account_id']]);
-                        }
-                        
-                        redirect(request()->header('Referer'));
-                    }),
-            ])
-            ->columns([
-                Tables\Columns\TextColumn::make('name')->label('Nombre'),
-                Tables\Columns\TextColumn::make('client.name')->label('Cliente'),
-                Tables\Columns\TextColumn::make('plan.daily_investment')->label('Plan'),
-                Tables\Columns\TextColumn::make('start_date')->label('Inicio'),
-                Tables\Columns\TextColumn::make('end_date')->label('Fin'),
-                Tables\Columns\TextColumn::make('budget')->label('Presupuesto')->money('usd', true),
-                Tables\Columns\TextColumn::make('actual_cost')->label('Costo Real')->money('usd', true),
-            ])
-            ->filters([
-                Tables\Filters\SelectFilter::make('status')
-                    ->options([
-                        'Active' => 'Activa',
-                        'Paused' => 'Pausada',
-                        'Finished' => 'Finalizada',
-                    ]),
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
+                Tables\Actions\ViewAction::make(),
+                Tables\Actions\Action::make('verEnFacebook')
+                    ->label('Ver en Facebook')
+                    ->icon('heroicon-o-arrow-top-right-on-square')
+                    ->url(function (AdsCampaign $record) {
+                        // Primero intentamos usar la cuenta asociada directamente a la campaña
+                        $accountId = null;
+                        
+                        if ($record->advertisingAccount) {
+                            // Usamos el account_id (ID de Facebook) no el ID interno de la base de datos
+                            $accountId = $record->advertisingAccount->account_id;
+                        } else {
+                            // Si no tiene cuenta asociada, usamos la de la sesión
+                            $selectedAccount = self::getSelectedAdvertisingAccount();
+                            if ($selectedAccount) {
+                                $accountId = $selectedAccount->account_id;
+                            }
+                        }
+                        
+                        // Asegurarnos de eliminar cualquier prefijo "act_" si existe
+                        $accountId = str_replace('act_', '', $accountId);
+                        
+                        return "https://adsmanager.facebook.com/adsmanager/manage/ads?act={$accountId}&selected_campaign_ids={$record->meta_campaign_id}";
+                    })
+                    ->openUrlInNewTab()
+                    ->visible(fn (AdsCampaign $record) => !empty($record->meta_campaign_id)),
             ])
             ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
-                ]),
-            ]);
+                // Normalmente no necesitamos acciones masivas para campañas de Facebook
+            ])
+            ->emptyStateHeading('No hay campañas')
+            ->emptyStateDescription('Las campañas se sincronizarán desde Facebook Ads')
+            ->emptyStateIcon('heroicon-o-document-text');
     }
-
-    public static function getRelations(): array
-    {
-        return [
-            // FanpageRelationManager::class,
-        ];
-    }
-
+    
     public static function getPages(): array
     {
         return [
             'index' => Pages\ListAdsCampaigns::route('/'),
-            'create' => Pages\CreateAdsCampaign::route('/create'),
-            'edit' => Pages\EditAdsCampaign::route('/{record}/edit'),
+            'view' => Pages\ViewAdsCampaign::route('/{record}'),
         ];
     }
 }
