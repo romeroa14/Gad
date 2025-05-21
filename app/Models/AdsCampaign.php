@@ -50,6 +50,11 @@ class AdsCampaign extends Model
         return $this->belongsTo(AdvertisingAccount::class);
     }
 
+    public function adSets()
+    {
+        return $this->hasMany(AdsSet::class);
+    }
+
     public function syncWithFacebook()
     {
         if (!$this->meta_campaign_id || !$this->advertising_account_id) {

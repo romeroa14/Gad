@@ -393,6 +393,35 @@ class FacebookAdsService
                 'with_instagram' => $withInstagram
             ]);
             
+            // Intentar obtener directamente las cuentas de Instagram que pueden usarse para anuncios
+            try {
+                $instagramAccountsResponse = Http::withToken($this->accessToken)
+                    ->get("https://graph.facebook.com/v18.0/{$this->adAccountId}/instagram_accounts", [
+                        'fields' => 'id,username,profile_pic'
+                    ]);
+                    
+                if ($instagramAccountsResponse->successful()) {
+                    $instagramAccounts = $instagramAccountsResponse->json('data', []);
+                    Log::info("Obtenidas " . count($instagramAccounts) . " cuentas de Instagram para la cuenta publicitaria");
+                    
+                    // Crear un mapeo de IDs de Instagram para consulta rápida
+                    $instagramAccountMap = [];
+                    foreach ($instagramAccounts as $account) {
+                        $instagramAccountMap[$account['id']] = $account;
+                    }
+                    
+                    // Ahora podemos enriquecer las campañas que tienen instagram_account_id
+                    foreach ($result as &$campaignData) {
+                        if (!empty($campaignData['instagram_account_id']) && 
+                            isset($instagramAccountMap[$campaignData['instagram_account_id']])) {
+                            $campaignData['instagram_username'] = $instagramAccountMap[$campaignData['instagram_account_id']]['username'] ?? null;
+                        }
+                    }
+                }
+            } catch (\Exception $e) {
+                Log::error("Error al obtener cuentas de Instagram: " . $e->getMessage());
+            }
+            
             return $result;
         } catch (\Exception $e) {
             Log::error('Error al obtener jerarquía de campañas: ' . $e->getMessage(), [
@@ -441,6 +470,132 @@ class FacebookAdsService
             return true;
         } catch (\Exception $e) {
             Log::error('Error validando token: ' . $e->getMessage());
+            throw $e;
+        }
+    }
+
+    /**
+     * Obtiene los conjuntos de anuncios para una campaña específica
+     */
+    public function getAdSetsForCampaign(string $campaignId)
+    {
+        try {
+            Log::info("Solicitando conjuntos de anuncios para campaña: {$campaignId}");
+            
+            $adSetsResponse = Http::withToken($this->accessToken)
+                ->get("https://graph.facebook.com/v18.0/{$campaignId}/adsets", [
+                    'fields' => 'id,name,status,daily_budget,lifetime_budget,targeting,optimization_goal,billing_event',
+                    'limit' => 100
+                ]);
+                
+            if (!$adSetsResponse->successful()) {
+                Log::error("Error al obtener conjuntos de anuncios", [
+                    'response' => $adSetsResponse->body(),
+                    'status' => $adSetsResponse->status()
+                ]);
+                return [];
+            }
+            
+            $adSets = $adSetsResponse->json('data', []);
+            
+            // Enriquecer con información adicional si es necesario
+            foreach ($adSets as &$adSet) {
+                // Contar anuncios
+                $adsCountResponse = Http::withToken($this->accessToken)
+                    ->get("https://graph.facebook.com/v18.0/{$adSet['id']}/ads", [
+                        'limit' => 1,
+                        'summary' => 'true'
+                    ]);
+                    
+                if ($adsCountResponse->successful()) {
+                    $adSet['ads_count'] = $adsCountResponse->json('summary.total_count', 0);
+                }
+            }
+            
+            return $adSets;
+        } catch (\Exception $e) {
+            Log::error("Error obteniendo conjuntos de anuncios: " . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * Obtiene los anuncios para un conjunto de anuncios específico
+     */
+    public function getAdsForAdSet(string $adSetId)
+    {
+        try {
+            Log::info("Solicitando anuncios para conjunto: {$adSetId}");
+            
+            // Limpiar ID si es necesario (a veces Facebook requiere IDs sin "act_")
+            $cleanAdSetId = str_replace('act_', '', $adSetId);
+            
+            // Mostrar la URL completa para debugging
+            $url = "https://graph.facebook.com/v18.0/{$cleanAdSetId}/ads";
+            $fields = 'id,name,status,creative{id,thumbnail_url,effective_object_story_id}';
+            Log::info("URL de consulta: {$url}?fields={$fields}");
+            
+            $adsResponse = Http::withToken($this->accessToken)
+                ->get($url, [
+                    'fields' => $fields,
+                    'limit' => 100
+                ]);
+                
+            // Registrar respuesta completa (solo en desarrollo)
+            if (app()->environment('local')) {
+                Log::debug("Respuesta API de Facebook:", [
+                    'status' => $adsResponse->status(),
+                    'body' => $adsResponse->body()
+                ]);
+            }
+            
+            if (!$adsResponse->successful()) {
+                Log::error("Error al obtener anuncios", [
+                    'response' => $adsResponse->body(),
+                    'status' => $adsResponse->status(),
+                    'adset_id' => $adSetId
+                ]);
+                
+                // Devolver estructura con información del error
+                return [
+                    'error' => true,
+                    'message' => $adsResponse->json('error.message', 'Error desconocido en API de Facebook'),
+                    'code' => $adsResponse->json('error.code', 0)
+                ];
+            }
+            
+            $ads = $adsResponse->json('data', []);
+            
+            Log::info("Anuncios obtenidos: " . count($ads));
+            
+            // Enriquecer con información adicional de las creatividades
+            foreach ($ads as &$ad) {
+                // Capturar excepciones para cada anuncio individualmente 
+                try {
+                    if (isset($ad['creative']['effective_object_story_id'])) {
+                        // Obtener preview URL o imagen de muestra
+                        $storyId = $ad['creative']['effective_object_story_id'];
+                        $ad['preview_url'] = "https://www.facebook.com/{$storyId}";
+                    }
+                    
+                    // Para debugging, incluir una marca de tiempo
+                    $ad['_loaded_at'] = now()->toIso8601String();
+                } catch (\Exception $e) {
+                    Log::warning("Error al procesar anuncio individual", [
+                        'ad_id' => $ad['id'] ?? 'unknown',
+                        'error' => $e->getMessage()
+                    ]);
+                }
+            }
+            
+            return $ads;
+        } catch (\Exception $e) {
+            Log::error("Error obteniendo anuncios: " . $e->getMessage(), [
+                'adset_id' => $adSetId,
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            // Lanzar excepción para que se maneje en el nivel superior
             throw $e;
         }
     }

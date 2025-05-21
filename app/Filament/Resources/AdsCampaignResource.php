@@ -11,9 +11,11 @@ use Filament\Tables\Table;
 use Filament\Resources\Resource;
 use Illuminate\Support\HtmlString;
 use App\Services\FacebookAds\FacebookAdsService;
+use Filament\Notifications\Notification;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Database\Eloquent\Collection;
 
 class AdsCampaignResource extends Resource
 {
@@ -62,6 +64,38 @@ class AdsCampaignResource extends Resource
         return $table
             ->query($query)
             ->headerActions([
+
+                Tables\Actions\Action::make('changeAccount')
+                ->label('Cambiar Cuenta')
+                ->icon('heroicon-o-credit-card')
+                ->form([
+                    Forms\Components\Select::make('advertising_account_id')
+                        ->label('Cuenta Publicitaria')
+                        ->options(function () {
+                            $accounts = AdvertisingAccount::all();
+                            return $accounts->pluck('name', 'id')->toArray();
+                        })
+                        ->required()
+                ])
+                ->action(function (array $data): void {
+                    $account = AdvertisingAccount::find($data['advertising_account_id']);
+                    
+                    if ($account) {
+                        session([
+                            'selected_advertising_account_id' => $account->id,
+                            'selected_advertising_account_fb_id' => $account->account_id
+                        ]);
+                        
+                        Notification::make()
+                            ->title('Cuenta seleccionada')
+                            ->body("Ahora trabajas con: {$account->name}")
+                            ->success()
+                            ->send();
+                    }
+                    
+                    // $this->redirect(ListAdsCampaigns::getUrl());
+                }),
+
                 Tables\Actions\Action::make('syncCampaigns')
                     ->label('Sincronizar Campañas')
                     ->icon('heroicon-o-arrow-path')
@@ -87,6 +121,7 @@ class AdsCampaignResource extends Resource
                             
                             $importedCount = 0;
                             $updatedWithInsightsCount = 0;
+                            $stateMap = [];
                             
                             // Log para debug
                             Log::info('Iniciando importación de campañas', [
@@ -94,7 +129,36 @@ class AdsCampaignResource extends Resource
                                 'total_campañas' => count($campaigns)
                             ]);
                             
+                            // Función auxiliar para mapear estados - definida dentro del closure
+                            $mapFacebookStatus = function($facebookStatus) {
+                                $status = strtoupper(trim($facebookStatus));
+                                
+                                switch ($status) {
+                                    case 'ACTIVE':
+                                        return 'activa';
+                                    case 'PAUSED':
+                                        return 'pausada';
+                                    case 'ARCHIVED':
+                                    case 'COMPLETED':
+                                        return 'completada';
+                                    case 'DELETED':
+                                        return 'eliminada';
+                                    case 'DISAPPROVED':
+                                        return 'rechazada';
+                                    case 'WITH_ISSUES':
+                                        return 'con problemas';
+                                    default:
+                                        Log::warning("Estado de Facebook desconocido: $facebookStatus", [
+                                            'mapped_to' => 'inactiva'
+                                        ]);
+                                        return 'inactiva';
+                                }
+                            };
+                            
                             foreach ($campaigns as $campaignData) {
+                                // Usar la función auxiliar definida arriba
+                                $status = $mapFacebookStatus($campaignData['status'] ?? 'ACTIVE');
+                                
                                 // Procesar fechas
                                 $startDate = !empty($campaignData['start_time']) 
                                     ? date('Y-m-d', strtotime($campaignData['start_time'])) 
@@ -111,19 +175,9 @@ class AdsCampaignResource extends Resource
                                     'page_link' => $campaignData['page_link'] ?? null,
                                     'instagram_account_id' => $campaignData['instagram_account_id'] ?? null,
                                     'instagram_username' => $campaignData['instagram_username'] ?? null,
+                                    'raw_status' => $campaignData['status'] ?? null, // Guardar el estado original
+                                    'delivery_info' => $campaignData['effective_status'] ?? $campaignData['status'] ?? null, // Guardar información de entrega
                                 ];
-                                
-                                // Log de debugging para ver qué información tenemos para esta campaña
-                                if (!empty($metaInsights['page_id']) || !empty($metaInsights['instagram_account_id'])) {
-                                    Log::info("Datos encontrados para campaña {$campaignData['id']}", [
-                                        'campaign' => $campaignData['name'],
-                                        'page_id' => $metaInsights['page_id'],
-                                        'page_name' => $metaInsights['page_name'],
-                                        'instagram_id' => $metaInsights['instagram_account_id'],
-                                        'instagram_username' => $metaInsights['instagram_username']
-                                    ]);
-                                    $updatedWithInsightsCount++;
-                                }
                                 
                                 // Crear o actualizar la campaña
                                 $campaign = AdsCampaign::updateOrCreate(
@@ -133,7 +187,7 @@ class AdsCampaignResource extends Resource
                                         'client_id' => $defaultClient->id,
                                         'plan_id' => $defaultPlan->id,
                                         'advertising_account_id' => $selectedAccount->id,
-                                        'status' => strtolower($campaignData['status']) ?? 'active',
+                                        'status' => $status,
                                         'budget' => 0,                   // Valor predeterminado
                                         'actual_cost' => 0,              // Valor predeterminado
                                         'start_date' => $startDate,
@@ -145,12 +199,22 @@ class AdsCampaignResource extends Resource
                                 // Limpiar caché para esta campaña
                                 Cache::forget("campaign_fanpage_{$campaign->id}");
                                 
+                                // Registrar los estados para información
+                                if (!isset($stateMap[$status])) {
+                                    $stateMap[$status] = 0;
+                                }
+                                $stateMap[$status]++;
+                                
                                 $importedCount++;
+                                
+                                if (!empty($metaInsights['page_id']) || !empty($metaInsights['instagram_account_id'])) {
+                                    $updatedWithInsightsCount++;
+                                }
                             }
                             
                             \Filament\Notifications\Notification::make()
                                 ->title("Campañas sincronizadas")
-                                ->body("{$importedCount} campañas en total, {$updatedWithInsightsCount} con información de página/Instagram")
+                                ->body("{$importedCount} campañas en total, {$updatedWithInsightsCount} con información de página/Instagram. Estados: " . json_encode($stateMap))
                                 ->success()
                                 ->send();
                         } catch (\Exception $e) {
@@ -311,15 +375,32 @@ class AdsCampaignResource extends Resource
                     ->label('Estado')
                     ->badge()
                     ->sortable()
-                    ->formatStateUsing(fn (string $state): string => ucfirst($state))
+                    ->formatStateUsing(function (string $state, AdsCampaign $record): string {
+                        // Si tenemos información de entrega en meta_insights, mostrarla junto con el estado
+                        if (!empty($record->meta_insights['delivery_info'])) {
+                            $deliveryInfo = $record->meta_insights['delivery_info'];
+                            return ucfirst($state) . ' (' . $deliveryInfo . ')';
+                        }
+                        
+                        return ucfirst($state);
+                    })
                     ->color(fn (string $state): string => 
                         match ($state) {
                             'active' => 'success',
                             'paused' => 'warning',
                             'completed' => 'info',
+                            'deleted' => 'gray',
+                            'rejected' => 'danger',
+                            'issue' => 'danger',
                             default => 'gray',
                         }
-                    ),
+                    )
+                    ->tooltip(function (AdsCampaign $record): ?string {
+                        if (!empty($record->meta_insights['raw_status'])) {
+                            return "Estado original en Facebook: " . $record->meta_insights['raw_status'];
+                        }
+                        return null;
+                    }),
                     
                 Tables\Columns\TextColumn::make('start_date')
                     ->label('Inicio')
@@ -340,6 +421,36 @@ class AdsCampaignResource extends Resource
                     ->label('Gasto')
                     ->money('usd')
                     ->sortable(),
+                
+                Tables\Columns\TextColumn::make('adsets_count')
+                    ->label('Conjuntos')
+                    ->getStateUsing(function (AdsCampaign $record) {
+                        // Usar caché para mejorar rendimiento
+                        $cacheKey = "adsets_count_" . $record->meta_campaign_id;
+                        return Cache::remember($cacheKey, now()->addMinutes(60), function() use ($record) {
+                            if (empty($record->meta_campaign_id)) return 0;
+                            
+                            try {
+                                // Buscar cuenta publicitaria para esta campaña
+                                $accountId = $record->advertisingAccount?->account_id;
+                                $service = new FacebookAdsService($accountId);
+                                $adSets = $service->getAdSetsForCampaign($record->meta_campaign_id);
+                                
+                                return count($adSets);
+                            } catch (\Exception $e) {
+                                Log::error("Error obteniendo conteo de adsets: " . $e->getMessage());
+                                return 0;
+                            }
+                        });
+                    })
+                    ->tooltip('Número de conjuntos de anuncios'),
+                
+                Tables\Columns\TextColumn::make('ads_count')
+                    ->label('Anuncios')
+                    ->getStateUsing(function (AdsCampaign $record) {
+                        return $record->adSets()->withCount('ads')->get()->sum('ads_count');
+                    })
+                    ->tooltip('Número total de anuncios'),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('status')
@@ -373,14 +484,35 @@ class AdsCampaignResource extends Resource
                         // Asegurarnos de eliminar cualquier prefijo "act_" si existe
                         $accountId = str_replace('act_', '', $accountId);
                         
-                        return "https://adsmanager.facebook.com/adsmanager/manage/ads?act={$accountId}&selected_campaign_ids={$record->meta_campaign_id}";
+                        return "https://adsmanager.facebook.com/adsmanager/manage/campaigns?act={$accountId}&selected_campaign_ids={$record->meta_campaign_id}";
                     })
                     ->openUrlInNewTab()
                     ->visible(fn (AdsCampaign $record) => !empty($record->meta_campaign_id)),
                 
+                Tables\Actions\Action::make('viewAdSets')
+                    ->label('Ver Conjuntos')
+                    ->icon('heroicon-o-squares-2x2')
+                    ->modalHeading(fn ($record) => "Conjuntos de Anuncios: {$record->name}")
+                    ->modalContent(function ($record) {
+                        // Cargar AdSets directamente de la API al abrir el modal
+                        $accountId = $record->advertisingAccount?->account_id;
+                        $service = new FacebookAdsService($accountId);
+                        $adSets = $service->getAdSetsForCampaign($record->meta_campaign_id);
+                        
+                        return view('filament.resources.ads-campaign-resource.components.adsets-list', [
+                            'campaign' => $record,
+                            'adSets' => $adSets,
+                        ]);
+                    }),
             ])
             ->bulkActions([
-                // Normalmente no necesitamos acciones masivas para campañas de Facebook
+                Tables\Actions\BulkAction::make('bulkSyncAdSets')
+                    ->label('Sincronizar Conjuntos')
+                    ->icon('heroicon-o-arrow-path')
+                    ->requiresConfirmation()
+                    ->action(function (Collection $records) {
+                        // Implementar sincronización masiva
+                    })
             ])
             ->emptyStateHeading('No hay campañas')
             ->emptyStateDescription('Las campañas se sincronizarán desde Facebook Ads')
@@ -393,5 +525,34 @@ class AdsCampaignResource extends Resource
             'index' => Pages\ListAdsCampaigns::route('/'),
             'view' => Pages\ViewAdsCampaign::route('/{record}'),
         ];
+    }
+
+    /**
+     * Mapear estados de Facebook a estados de la aplicación
+     */
+    private function mapFacebookStatus($facebookStatus)
+    {
+        $status = strtoupper(trim($facebookStatus));
+        
+        switch ($status) {
+            case 'ACTIVE':
+                return 'active';
+            case 'PAUSED':
+                return 'paused';
+            case 'ARCHIVED':
+            case 'COMPLETED':
+                return 'completed';
+            case 'DELETED':
+                return 'deleted';
+            case 'DISAPPROVED':
+                return 'rejected';
+            case 'WITH_ISSUES':
+                return 'issue';
+            default:
+                Log::warning("Estado de Facebook desconocido: $facebookStatus", [
+                    'mapped_to' => 'inactive'
+                ]);
+                return 'inactive';
+        }
     }
 }
