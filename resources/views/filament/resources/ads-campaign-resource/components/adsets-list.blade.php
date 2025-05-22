@@ -9,39 +9,54 @@
                 <p>No se encontraron conjuntos de anuncios para esta campaña.</p>
             </div>
         @else
-            <div class="overflow-auto">
-                <table class="w-full text-sm text-left">
-                    <thead>
+            <div class="overflow-x-auto">
+                <table class="w-full divide-y divide-gray-200 border border-gray-200 rounded-lg shadow-sm">
+                    <thead class="bg-gray-50">
                         <tr>
-                            <th>Nombre</th>
-                            <th>Estado</th>
-                            <th>Presupuesto</th>
-                            <th>Anuncios</th>
-                            <th>Acciones</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nombre</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Presupuesto</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Anuncios</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody class="bg-white divide-y divide-gray-200">
                         @foreach($adSets as $adSet)
-                            <tr>
-                                <td>{{ $adSet['name'] }}</td>
-                                <td>{{ $adSet['status'] }}</td>
-                                <td>
+                            <tr class="hover:bg-gray-50 transition-colors">
+                                <td class="px-6 py-4 whitespace-nowrap font-medium text-gray-900">{{ $adSet['name'] }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="px-2 py-1 text-xs rounded-full font-medium
+                                        @if($adSet['status'] == 'ACTIVE') bg-green-100 text-green-800
+                                        @elseif($adSet['status'] == 'PAUSED') bg-yellow-100 text-yellow-800
+                                        @else bg-gray-100 text-gray-800 @endif">
+                                        {{ $adSet['status'] }}
+                                    </span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
                                     @if(!empty($adSet['daily_budget']))
-                                        {{ number_format($adSet['daily_budget']/100, 2) }} USD/día
+                                        <span class="font-medium">{{ number_format($adSet['daily_budget']/100, 2) }}</span> USD/día
                                     @elseif(!empty($adSet['lifetime_budget']))
-                                        {{ number_format($adSet['lifetime_budget']/100, 2) }} USD total
+                                        <span class="font-medium">{{ number_format($adSet['lifetime_budget']/100, 2) }}</span> USD total
                                     @else
                                         -
                                     @endif
                                 </td>
-                                <td>{{ $adSet['ads_count'] ?? 0 }}</td>
-                                <td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    <span class="bg-blue-50 text-blue-700 px-2 py-1 rounded-full font-medium">
+                                        {{ $adSet['ads_count'] ?? 0 }}
+                                    </span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
                                     <button 
                                         type="button"
                                         x-data
                                         x-on:click="$dispatch('open-modal', { id: 'view-ads-{{ $adSet['id'] }}' })"
-                                        class="bg-blue-500 text-black px-4 py-2 rounded hover:bg-blue-600"
+                                        class="inline-flex items-center px-3 py-2 border border-blue-300 text-sm leading-4 font-medium rounded-md text-blue-700 bg-blue-50 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
                                     >
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                        </svg>
                                         Ver anuncios
                                     </button>
                                 </td>
@@ -89,24 +104,63 @@
                         }"
                         x-init="loadAds()"
                     >
-                        <div x-show="loading">Cargando...</div>
-                        <div x-show="error" class="text-red-600">
-                            <p x-text="'Error: ' + error"></p>
-                            <button @click="loadAds()" class="text-primary-600">Reintentar</button>
+                        <div x-show="loading" class="flex justify-center items-center py-12">
+                            <div class="inline-block animate-spin rounded-full h-8 w-8 border-4 border-solid border-current border-r-transparent text-primary-500 align-[-0.125em]" role="status">
+                                <span class="sr-only">Cargando...</span>
+                            </div>
+                            <span class="ml-3 text-gray-700">Cargando anuncios...</span>
                         </div>
-                        <div x-show="!loading && !error && ads.length === 0">No hay anuncios</div>
-                        <div x-show="!loading && !error && ads.length > 0">
+                        
+                        <div x-show="error" class="bg-red-50 border-l-4 border-red-500 p-4 my-4">
+                            <div class="flex">
+                                <div class="flex-shrink-0">
+                                    <svg class="h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                                    </svg>
+                                </div>
+                                <div class="ml-3">
+                                    <p class="text-sm text-red-700" x-text="'Error: ' + error"></p>
+                                    <button @click="loadAds()" class="mt-2 text-sm font-medium text-red-700 hover:text-red-600 underline">Reintentar</button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div x-show="!loading && !error && ads.length === 0" class="text-center py-12 text-gray-500">
+                            <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <h3 class="mt-2 text-sm font-medium text-gray-900">No hay anuncios</h3>
+                            <p class="mt-1 text-sm text-gray-500">No se encontraron anuncios para este conjunto.</p>
+                        </div>
+                        
+                        <div x-show="!loading && !error && ads.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-4">
                             <template x-for="ad in ads" :key="ad.id">
-                                <div>
-                                    <span x-text="ad.name"></span>
-                                    <div>
-                                        <a :href="ad.preview_url" target="_blank" class="flex items-center gap-2">
-                                            Ver en Facebook
-                                            <img :src="ad.thumbnail_url" alt="Thumbnail" class="w-16 h-16">
-                                        </a>
+                                <div class="bg-white overflow-hidden border border-gray-200 rounded-lg shadow hover:shadow-md transition-shadow">
+                                    <div class="p-5">
+                                        <h3 x-text="ad.name" class="text-lg font-medium text-gray-900 truncate"></h3>
+                                        <p class="text-xs text-gray-500 mt-1">ID: <span x-text="ad.id"></span></p>
+                                    
+                                        <div class="flex items-center justify-between mt-3">
+                                            <span class="px-2 py-1 text-xs rounded-full font-medium"
+                                                :class="{
+                                                    'bg-green-100 text-green-800': ad.status === 'ACTIVE',
+                                                    'bg-yellow-100 text-yellow-800': ad.status === 'PAUSED',
+                                                    'bg-gray-100 text-gray-800': ad.status !== 'ACTIVE' && ad.status !== 'PAUSED'
+                                                }"
+                                                x-text="ad.status">
+                                            </span>
+                                        </div>
+                                    
+                                        <template x-if="ad.preview_url">
+                                            <a :href="ad.preview_url" target="_blank" class="mt-4 inline-flex items-center text-sm font-medium text-blue-600 hover:text-blue-800">
+                                                <span>Ver en Facebook</span>
+                                                <svg class="h-4 w-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                                                </svg>
+                                            </a>
+                                        </template>
                                     </div>
                                 </div>
-                                
                             </template>
                         </div>
                     </div>
