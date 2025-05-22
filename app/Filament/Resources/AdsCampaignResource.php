@@ -448,7 +448,37 @@ class AdsCampaignResource extends Resource
                 Tables\Columns\TextColumn::make('ads_count')
                     ->label('Anuncios')
                     ->getStateUsing(function (AdsCampaign $record) {
-                        return $record->adSets()->withCount('ads')->get()->sum('ads_count');
+                        $cacheKey = "ads_count_" . $record->meta_campaign_id;
+                        return Cache::remember($cacheKey, now()->addMinutes(60), function() use ($record) {
+                            if (empty($record->meta_campaign_id)) return 0;
+                            
+                            try {
+                                // Buscar cuenta publicitaria para esta campaña
+                                $accountId = $record->advertisingAccount?->account_id;
+                                $service = new FacebookAdsService($accountId);
+                                
+                                // Obtener todos los adsets de la campaña
+                                $adSets = $service->getAdSetsForCampaign($record->meta_campaign_id);
+                                
+                                // Contar todos los anuncios en todos los adsets
+                                $totalAds = 0;
+                                foreach ($adSets as $adSet) {
+                                    // Si el adset tiene un contador precalculado, usarlo
+                                    if (isset($adSet['ads_count'])) {
+                                        $totalAds += $adSet['ads_count'];
+                                    } else {
+                                        // Si no, hacer consulta para obtener los anuncios del adset
+                                        $ads = $service->getAdsForAdSet($adSet['id']);
+                                        $totalAds += count($ads);
+                                    }
+                                }
+                                
+                                return $totalAds;
+                            } catch (\Exception $e) {
+                                Log::error("Error obteniendo conteo de anuncios: " . $e->getMessage());
+                                return 0;
+                            }
+                        });
                     })
                     ->tooltip('Número total de anuncios'),
             ])
@@ -493,6 +523,8 @@ class AdsCampaignResource extends Resource
                     ->label('Ver Conjuntos')
                     ->icon('heroicon-o-squares-2x2')
                     ->modalHeading(fn ($record) => "{$record->name}")
+                    ->modalSubmitAction(false)
+                    ->modalCancelAction(false )
                     ->modalContent(function ($record) {
                         // Cargar AdSets directamente de la API al abrir el modal
                         $accountId = $record->advertisingAccount?->account_id;
