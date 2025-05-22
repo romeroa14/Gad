@@ -125,7 +125,7 @@
                             </div>
                         </div>
                         
-                        <div x-show="!loading && !error && ads.length === 0" class="text-center py-12 text-gray-500">
+                        <div x-show="!loading && !error && ads.length === 0" class="grid grid-cols-1 gap-4 mt-4">
                             <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
@@ -133,32 +133,63 @@
                             <p class="mt-1 text-sm text-gray-500">No se encontraron anuncios para este conjunto.</p>
                         </div>
                         
-                        <div x-show="!loading && !error && ads.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-4">
+                        {{-- Lista de anuncios --}}
+                        <div x-show="!loading && !error && ads.length > 0" class="grid grid-cols-1 gap-4 mt-4">
                             <template x-for="ad in ads" :key="ad.id">
                                 <div class="bg-white overflow-hidden border border-gray-200 rounded-lg shadow hover:shadow-md transition-shadow">
-                                    <div class="p-5">
-                                        <h3 x-text="ad.name" class="text-lg font-medium text-gray-900 truncate"></h3>
-                                        <p class="text-xs text-gray-500 mt-1">ID: <span x-text="ad.id"></span></p>
-                                    
-                                        <div class="flex items-center justify-between mt-3">
-                                            <span class="px-2 py-1 text-xs rounded-full font-medium"
-                                                :class="{
-                                                    'bg-green-100 text-green-800': ad.status === 'ACTIVE',
-                                                    'bg-yellow-100 text-yellow-800': ad.status === 'PAUSED',
-                                                    'bg-gray-100 text-gray-800': ad.status !== 'ACTIVE' && ad.status !== 'PAUSED'
-                                                }"
-                                                x-text="ad.status">
-                                            </span>
+                                    <div class="flex flex-row items-start">
+                                        <!-- Imagen del anuncio (más grande) -->
+                                        <div class="flex-shrink-0">
+                                            <template x-if="ad.image_url || ad.thumbnail_url">
+                                                <img 
+                                                    :src="ad.image_url || ad.thumbnail_url" 
+                                                    :alt="ad.name" 
+                                                    class="w-40 h-40 object-cover"
+                                                />
+                                            </template>
+                                            <template x-if="!ad.image_url && !ad.thumbnail_url">
+                                                <div class="w-40 h-40 bg-gray-100 flex items-center justify-center">
+                                                    <svg class="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                                                    </svg>
+                                                </div>
+                                            </template>
                                         </div>
-                                    
-                                        <template x-if="ad.preview_url">
-                                            <a :href="ad.preview_url" target="_blank" class="mt-4 inline-flex items-center text-sm font-medium text-blue-600 hover:text-blue-800">
-                                                <span>Ver en Facebook</span>
-                                                <svg class="h-4 w-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
-                                                </svg>
-                                            </a>
-                                        </template>
+                                        
+                                        <!-- Contenido del anuncio (información a la derecha) -->
+                                        <div class="flex-1 p-4">
+                                            <h3 x-text="ad.name" class="text-lg font-medium text-gray-900 truncate mb-1"></h3>
+                                            <p class="text-xs text-gray-500 mb-3">ID: <span x-text="ad.id"></span></p>
+                                            
+                                            <!-- Estado -->
+                                            <div class="mb-3">
+                                                <span class="px-2 py-1 text-xs rounded-full font-medium"
+                                                    :class="{
+                                                        'bg-green-100 text-green-800': ad.status === 'ACTIVE',
+                                                        'bg-yellow-100 text-yellow-800': ad.status === 'PAUSED',
+                                                        'bg-gray-100 text-gray-800': ad.status !== 'ACTIVE' && ad.status !== 'PAUSED'
+                                                    }"
+                                                    x-text="ad.status">
+                                                </span>
+                                            </div>
+                                            
+                                            <!-- Botón Ver en Facebook (ahora debajo del estado) -->
+                                            <template x-if="ad.preview_url">
+                                                <a :href="ad.preview_url" target="_blank" class="inline-flex items-center text-sm font-medium text-blue-600 hover:text-blue-800">
+                                                    <span>Ver en Facebook</span>
+                                                    <svg class="h-4 w-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                                                    </svg>
+                                                </a>
+                                            </template>
+                                            
+                                            <!-- Texto del anuncio (si está disponible) -->
+                                            <template x-if="ad.creative && ad.creative.body">
+                                                <div class="mt-3 text-sm text-gray-600">
+                                                    <p class="line-clamp-3" x-text="ad.creative.body"></p>
+                                                </div>
+                                            </template>
+                                        </div>
                                     </div>
                                 </div>
                             </template>
