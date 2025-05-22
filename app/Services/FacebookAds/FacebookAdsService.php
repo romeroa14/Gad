@@ -527,26 +527,24 @@ class FacebookAdsService
         try {
             Log::info("Solicitando anuncios para conjunto: {$adSetId}");
             
-            // Limpiar ID si es necesario (a veces Facebook requiere IDs sin "act_")
+            // Limpiar ID si es necesario
             $cleanAdSetId = str_replace('act_', '', $adSetId);
             
-            // Mostrar la URL completa para debugging
-            $url = "https://graph.facebook.com/v18.0/{$cleanAdSetId}/ads";
-            $fields = 'id,name,status,creative{id,thumbnail_url,effective_object_story_id}';
-            Log::info("URL de consulta: {$url}?fields={$fields}");
+            // Solicitar campos adicionales para obtener imágenes y previsualizaciones
+            $fields = 'id,name,status,creative{id,thumbnail_url,image_url,body,title,effective_object_story_id,asset_feed_spec},adcreatives{id,name,image_url,thumbnail_url,body,title,object_story_id},preview_shareable_link';
+            
+            Log::info("URL de consulta: https://graph.facebook.com/v18.0/{$cleanAdSetId}/ads?fields={$fields}");
             
             $adsResponse = Http::withToken($this->accessToken)
-                ->get($url, [
+                ->get("https://graph.facebook.com/v18.0/{$cleanAdSetId}/ads", [
                     'fields' => $fields,
                     'limit' => 100
                 ]);
                 
-            // Registrar respuesta completa (solo en desarrollo)
-            if (app()->environment('local')) {
-                Log::debug("Respuesta API de Facebook:", [
-                    'status' => $adsResponse->status(),
-                    'body' => $adsResponse->body()
-                ]);
+            // Registrar la respuesta para debugging
+            if (app()->environment('local', 'development')) {
+                Log::debug("Respuesta de la API (primeros 1000 caracteres): " . 
+                    substr($adsResponse->body(), 0, 1000) . "...");
             }
             
             if (!$adsResponse->successful()) {
@@ -556,10 +554,9 @@ class FacebookAdsService
                     'adset_id' => $adSetId
                 ]);
                 
-                // Devolver estructura con información del error
                 return [
                     'error' => true,
-                    'message' => $adsResponse->json('error.message', 'Error desconocido en API de Facebook'),
+                    'message' => $adsResponse->json('error.message', 'Error desconocido'),
                     'code' => $adsResponse->json('error.code', 0)
                 ];
             }
@@ -568,22 +565,57 @@ class FacebookAdsService
             
             Log::info("Anuncios obtenidos: " . count($ads));
             
-            // Enriquecer con información adicional de las creatividades
+            // Procesar cada anuncio para extraer imágenes y preparar datos de vista previa
             foreach ($ads as &$ad) {
-                // Capturar excepciones para cada anuncio individualmente 
                 try {
-                    if (isset($ad['creative']['effective_object_story_id'])) {
-                        // Obtener preview URL o imagen de muestra
-                        $storyId = $ad['creative']['effective_object_story_id'];
-                        $ad['preview_url'] = "https://www.facebook.com/{$storyId}";
+                    // Inicializar campos de imagen
+                    $ad['image_url'] = null;
+                    $ad['thumbnail_url'] = null;
+                    $ad['preview_url'] = null;
+                    
+                    // Intentar obtener imagen de creative
+                    if (!empty($ad['creative'])) {
+                        // Opción 1: URL de imagen directa
+                        if (!empty($ad['creative']['image_url'])) {
+                            $ad['image_url'] = $ad['creative']['image_url'];
+                        }
+                        
+                        // Opción 2: URL de miniatura
+                        if (!empty($ad['creative']['thumbnail_url'])) {
+                            $ad['thumbnail_url'] = $ad['creative']['thumbnail_url'];
+                        }
+                        
+                        // Opción 3: Contenido de feed
+                        if (!empty($ad['creative']['asset_feed_spec']['images'][0]['url'])) {
+                            $ad['image_url'] = $ad['creative']['asset_feed_spec']['images'][0]['url'];
+                        }
+                        
+                        // URL de vista previa
+                        if (!empty($ad['creative']['effective_object_story_id'])) {
+                            $storyId = $ad['creative']['effective_object_story_id'];
+                            $ad['preview_url'] = "https://www.facebook.com/{$storyId}";
+                        }
                     }
                     
-                    // Para debugging, incluir una marca de tiempo
-                    $ad['_loaded_at'] = now()->toIso8601String();
+                    // Intentar obtener de adcreatives si no hay imagen todavía
+                    if (empty($ad['image_url']) && !empty($ad['adcreatives'][0])) {
+                        if (!empty($ad['adcreatives'][0]['image_url'])) {
+                            $ad['image_url'] = $ad['adcreatives'][0]['image_url'];
+                        }
+                        
+                        if (!empty($ad['adcreatives'][0]['thumbnail_url'])) {
+                            $ad['thumbnail_url'] = $ad['adcreatives'][0]['thumbnail_url'];
+                        }
+                    }
+                    
+                    // Link compartible directo de Facebook (mejor opción)
+                    if (!empty($ad['preview_shareable_link'])) {
+                        $ad['preview_url'] = $ad['preview_shareable_link'];
+                    }
+                    
                 } catch (\Exception $e) {
-                    Log::warning("Error al procesar anuncio individual", [
-                        'ad_id' => $ad['id'] ?? 'unknown',
-                        'error' => $e->getMessage()
+                    Log::warning("Error procesando imágenes para anuncio: " . $e->getMessage(), [
+                        'ad_id' => $ad['id'] ?? 'unknown'
                     ]);
                 }
             }
@@ -595,7 +627,6 @@ class FacebookAdsService
                 'trace' => $e->getTraceAsString()
             ]);
             
-            // Lanzar excepción para que se maneje en el nivel superior
             throw $e;
         }
     }

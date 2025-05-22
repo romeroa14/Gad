@@ -492,7 +492,7 @@ class AdsCampaignResource extends Resource
                 Tables\Actions\Action::make('viewAdSets')
                     ->label('Ver Conjuntos')
                     ->icon('heroicon-o-squares-2x2')
-                    ->modalHeading(fn ($record) => "Conjuntos de Anuncios: {$record->name}")
+                    ->modalHeading(fn ($record) => "{$record->name}")
                     ->modalContent(function ($record) {
                         // Cargar AdSets directamente de la API al abrir el modal
                         $accountId = $record->advertisingAccount?->account_id;
