@@ -10,6 +10,8 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Session;
 use App\Models\AdvertisingAccount;
+use App\Models\AdsSet;
+use App\Models\Ad;
 
 class FacebookAdsService
 {
@@ -125,310 +127,97 @@ class FacebookAdsService
     }
 
     /**
-     * Obtiene las campañas con sus conjuntos de anuncios y anuncios
-     * para poder acceder a información de page_id e instagram_account_id
+     * Extraer información de página e Instagram de un ad creative
      */
-    public function getCampaignsWithAdsHierarchy()
+    private function extractSocialInfo($creative)
+    {
+        $socialInfo = [
+            'page_id' => null,
+            'page_name' => null,
+            'instagram_account_id' => null,
+            'instagram_username' => null
+        ];
+
+        try {
+            // Buscar page_id en object_story_spec
+            if (!empty($creative['object_story_spec']['page_id'])) {
+                $socialInfo['page_id'] = $creative['object_story_spec']['page_id'];
+            }
+
+            // Buscar instagram_account_id
+            if (!empty($creative['object_story_spec']['instagram_actor_id'])) {
+                $socialInfo['instagram_account_id'] = $creative['object_story_spec']['instagram_actor_id'];
+            }
+
+            // Buscar en effective_object_story_id como fallback
+            if (!$socialInfo['page_id'] && !empty($creative['effective_object_story_id'])) {
+                $storyId = $creative['effective_object_story_id'];
+                if (strpos($storyId, '_') !== false) {
+                    $parts = explode('_', $storyId);
+                    if (is_numeric($parts[0])) {
+                        $socialInfo['page_id'] = $parts[0];
+                    }
+                }
+            }
+
+            // Obtener nombres si tenemos IDs
+            if ($socialInfo['page_id']) {
+                $socialInfo['page_name'] = $this->getPageName($socialInfo['page_id']);
+            }
+
+            if ($socialInfo['instagram_account_id']) {
+                $socialInfo['instagram_username'] = $this->getInstagramUsername($socialInfo['instagram_account_id']);
+            }
+
+            Log::info("Información social extraída:", $socialInfo);
+
+        } catch (\Exception $e) {
+            Log::warning("Error extrayendo información social: " . $e->getMessage());
+        }
+
+        return $socialInfo;
+    }
+
+    /**
+     * Obtener nombre de página (con cache)
+     */
+    private function getPageName($pageId)
     {
         try {
-            Log::info("Solicitando jerarquía completa de campañas para la cuenta: {$this->adAccountId}");
-            
-            // 1. Obtener campañas
-            $campaignFields = [
-                'id',
-                'name',
-                'status',
-                'objective',
-                'created_time',
-                'start_time',
-                'stop_time',
-                'daily_budget',
-                'lifetime_budget',
-                'promoted_object'
-            ];
-            
-            $campaignParams = [
-                'limit' => 100,
-                'status' => ['ACTIVE', 'PAUSED', 'ARCHIVED']
-            ];
-
-            // Obtener todas las campañas
-            $campaignsResponse = Http::withToken($this->accessToken)
-                ->get("https://graph.facebook.com/v18.0/{$this->adAccountId}/campaigns", [
-                    'fields' => implode(',', $campaignFields),
-                    'limit' => 100
+            $response = Http::withToken($this->accessToken)
+                ->get("https://graph.facebook.com/v18.0/{$pageId}", [
+                    'fields' => 'name'
                 ]);
-                
-            if (!$campaignsResponse->successful()) {
-                Log::error("Error al obtener campañas", [
-                    'response' => $campaignsResponse->body(),
-                    'status' => $campaignsResponse->status()
-                ]);
-                return [];
+            
+            if ($response->successful()) {
+                return $response->json('name');
             }
-            
-            $campaigns = $campaignsResponse->json('data', []);
-            $result = [];
-            
-            // 2. MÉTODO ALTERNATIVO: Obtener todos los anuncios directamente de la cuenta
-            // Esto nos permitirá encontrar más page_ids e instagram_ids
-            $allAdsResponse = Http::withToken($this->accessToken)
-                ->get("https://graph.facebook.com/v18.0/{$this->adAccountId}/ads", [
-                    'fields' => 'id,name,campaign_id,creative{object_story_spec,effective_object_story_id,object_story_id}',
-                    'limit' => 500  // Aumentamos el límite para obtener más anuncios
-                ]);
-                
-            $allAdsMap = [];
-            $adToCampaignMap = [];
-            
-            if ($allAdsResponse->successful()) {
-                $allAds = $allAdsResponse->json('data', []);
-                Log::info("Obtenidos " . count($allAds) . " anuncios para la cuenta", [
-                    'account_id' => $this->adAccountId
-                ]);
-                
-                // Organizar anuncios por campaña
-                foreach ($allAds as $ad) {
-                    if (!empty($ad['campaign_id'])) {
-                        $adToCampaignMap[$ad['id']] = $ad['campaign_id'];
-                        
-                        if (!isset($allAdsMap[$ad['campaign_id']])) {
-                            $allAdsMap[$ad['campaign_id']] = [];
-                        }
-                        
-                        $allAdsMap[$ad['campaign_id']][] = $ad;
-                    }
-                }
-            } else {
-                Log::warning("No se pudieron obtener todos los anuncios de la cuenta", [
-                    'response' => $allAdsResponse->body(),
-                    'status' => $allAdsResponse->status()
-                ]);
-            }
-            
-            // 3. Procesar cada campaña
-            foreach ($campaigns as $campaign) {
-                $campaignData = [
-                    'id' => $campaign['id'],
-                    'name' => $campaign['name'],
-                    'status' => $campaign['status'],
-                    'objective' => $campaign['objective'] ?? null,
-                    'created_time' => $campaign['created_time'] ?? null,
-                    'start_time' => $campaign['start_time'] ?? null,
-                    'stop_time' => $campaign['stop_time'] ?? null,
-                    'daily_budget' => $campaign['daily_budget'] ?? null,
-                    'lifetime_budget' => $campaign['lifetime_budget'] ?? null,
-                    'page_id' => null,
-                    'page_name' => null,
-                    'instagram_account_id' => null,
-                    'instagram_username' => null
-                ];
-                
-                // Extraer información directamente de promoted_object si está disponible
-                if (!empty($campaign['promoted_object'])) {
-                    if (!empty($campaign['promoted_object']['page_id'])) {
-                        $campaignData['page_id'] = $campaign['promoted_object']['page_id'];
-                        Log::info("Encontrado page_id en promoted_object", [
-                            'campaign_id' => $campaign['id'],
-                            'page_id' => $campaign['promoted_object']['page_id']
-                        ]);
-                    }
-                    
-                    if (!empty($campaign['promoted_object']['instagram_account_id'])) {
-                        $campaignData['instagram_account_id'] = $campaign['promoted_object']['instagram_account_id'];
-                        Log::info("Encontrado instagram_account_id en promoted_object", [
-                            'campaign_id' => $campaign['id'],
-                            'instagram_id' => $campaign['promoted_object']['instagram_account_id']
-                        ]);
-                    }
-                }
-                
-                // Si no tenemos page_id o instagram_id, buscar en los anuncios previamente obtenidos
-                if (empty($campaignData['page_id']) || empty($campaignData['instagram_account_id'])) {
-                    if (isset($allAdsMap[$campaign['id']])) {
-                        foreach ($allAdsMap[$campaign['id']] as $ad) {
-                            // Buscar en object_story_spec
-                            if (!empty($ad['creative']['object_story_spec'])) {
-                                $storySpec = $ad['creative']['object_story_spec'];
-                                
-                                if (empty($campaignData['page_id']) && !empty($storySpec['page_id'])) {
-                                    $campaignData['page_id'] = $storySpec['page_id'];
-                                    Log::info("Encontrado page_id en object_story_spec", [
-                                        'campaign_id' => $campaign['id'],
-                                        'ad_id' => $ad['id'],
-                                        'page_id' => $storySpec['page_id']
-                                    ]);
-                                }
-                                
-                                if (empty($campaignData['instagram_account_id']) && !empty($storySpec['instagram_actor_id'])) {
-                                    $campaignData['instagram_account_id'] = $storySpec['instagram_actor_id'];
-                                    Log::info("Encontrado instagram_account_id en object_story_spec", [
-                                        'campaign_id' => $campaign['id'],
-                                        'ad_id' => $ad['id'],
-                                        'instagram_id' => $storySpec['instagram_actor_id']
-                                    ]);
-                                }
-                            }
-                            
-                            // Buscar en effective_object_story_id o object_story_id
-                            if (empty($campaignData['page_id'])) {
-                                $storyId = isset($ad['creative']['effective_object_story_id']) ? $ad['creative']['effective_object_story_id'] : 
-                                          (isset($ad['creative']['object_story_id']) ? $ad['creative']['object_story_id'] : null);
-                                
-                                if ($storyId && is_string($storyId) && strpos($storyId, '_') !== false) {
-                                    $parts = explode('_', $storyId);
-                                    if (count($parts) >= 2 && is_numeric($parts[0])) {
-                                        $campaignData['page_id'] = $parts[0];
-                                        Log::info("Encontrado page_id en story_id", [
-                                            'campaign_id' => $campaign['id'],
-                                            'ad_id' => $ad['id'],
-                                            'story_id' => $storyId,
-                                            'extracted_page_id' => $parts[0]
-                                        ]);
-                                    }
-                                }
-                            }
-                            
-                            // Si ya encontramos ambos, salir del bucle
-                            if (!empty($campaignData['page_id']) && !empty($campaignData['instagram_account_id'])) {
-                                break;
-                            }
-                        }
-                    }
-                }
-                
-                // 4. Si aún no tenemos page_id o instagram_id, obtener todos los anuncios específicamente para esta campaña
-                if (empty($campaignData['page_id']) && empty($campaignData['instagram_account_id'])) {
-                    try {
-                        $campaignAdsResponse = Http::withToken($this->accessToken)
-                            ->get("https://graph.facebook.com/v18.0/{$campaign['id']}/ads", [
-                                'fields' => 'creative{object_story_spec,effective_object_story_id,object_story_id}',
-                                'limit' => 50
-                            ]);
-                        
-                        if ($campaignAdsResponse->successful()) {
-                            $campaignAds = $campaignAdsResponse->json('data', []);
-                            
-                            foreach ($campaignAds as $ad) {
-                                // Similar a la lógica anterior, buscar en object_story_spec
-                                if (!empty($ad['creative']['object_story_spec'])) {
-                                    $storySpec = $ad['creative']['object_story_spec'];
-                                    
-                                    if (empty($campaignData['page_id']) && !empty($storySpec['page_id'])) {
-                                        $campaignData['page_id'] = $storySpec['page_id'];
-                                    }
-                                    
-                                    if (empty($campaignData['instagram_account_id']) && !empty($storySpec['instagram_actor_id'])) {
-                                        $campaignData['instagram_account_id'] = $storySpec['instagram_actor_id'];
-                                    }
-                                }
-                                
-                                // Buscar en effective_object_story_id o object_story_id
-                                if (empty($campaignData['page_id'])) {
-                                    $storyId = isset($ad['creative']['effective_object_story_id']) ? $ad['creative']['effective_object_story_id'] : 
-                                              (isset($ad['creative']['object_story_id']) ? $ad['creative']['object_story_id'] : null);
-                                    
-                                    if ($storyId && is_string($storyId) && strpos($storyId, '_') !== false) {
-                                        $parts = explode('_', $storyId);
-                                        if (count($parts) >= 2 && is_numeric($parts[0])) {
-                                            $campaignData['page_id'] = $parts[0];
-                                        }
-                                    }
-                                }
-                                
-                                if (!empty($campaignData['page_id']) && !empty($campaignData['instagram_account_id'])) {
-                                    break;
-                                }
-                            }
-                        }
-                    } catch (\Exception $e) {
-                        Log::error("Error al obtener anuncios para la campaña " . $campaign['id'] . ": " . $e->getMessage());
-                    }
-                }
-                
-                // 5. Obtener detalles de página y/o cuenta de Instagram si encontramos IDs
-                if (!empty($campaignData['page_id'])) {
-                    try {
-                        $pageResponse = Http::withToken($this->accessToken)
-                            ->get("https://graph.facebook.com/v18.0/{$campaignData['page_id']}", [
-                                'fields' => 'name,link'
-                            ]);
-                        
-                        if ($pageResponse->successful()) {
-                            $pageData = $pageResponse->json();
-                            $campaignData['page_name'] = $pageData['name'] ?? null;
-                            $campaignData['page_link'] = $pageData['link'] ?? null;
-                        }
-                    } catch (\Exception $e) {
-                        Log::error("Error al obtener información de la página " . $campaignData['page_id'] . ": " . $e->getMessage());
-                    }
-                }
-                
-                if (!empty($campaignData['instagram_account_id'])) {
-                    try {
-                        $igResponse = Http::withToken($this->accessToken)
-                            ->get("https://graph.facebook.com/v18.0/{$campaignData['instagram_account_id']}", [
-                                'fields' => 'username'
-                            ]);
-                        
-                        if ($igResponse->successful()) {
-                            $igData = $igResponse->json();
-                            $campaignData['instagram_username'] = $igData['username'] ?? null;
-                        }
-                    } catch (\Exception $e) {
-                        Log::error("Error al obtener información de Instagram " . $campaignData['instagram_account_id'] . ": " . $e->getMessage());
-                    }
-                }
-                
-                $result[] = $campaignData;
-            }
-            
-            // Log resumen
-            $withPageId = count(array_filter($result, function($c) { return !empty($c['page_id']); }));
-            $withInstagram = count(array_filter($result, function($c) { return !empty($c['instagram_account_id']); }));
-            
-            Log::info("Jerarquía de campañas obtenida", [
-                'total_campaigns' => count($result),
-                'with_page_id' => $withPageId,
-                'with_instagram' => $withInstagram
-            ]);
-            
-            // Intentar obtener directamente las cuentas de Instagram que pueden usarse para anuncios
-            try {
-                $instagramAccountsResponse = Http::withToken($this->accessToken)
-                    ->get("https://graph.facebook.com/v18.0/{$this->adAccountId}/instagram_accounts", [
-                        'fields' => 'id,username,profile_pic'
-                    ]);
-                    
-                if ($instagramAccountsResponse->successful()) {
-                    $instagramAccounts = $instagramAccountsResponse->json('data', []);
-                    Log::info("Obtenidas " . count($instagramAccounts) . " cuentas de Instagram para la cuenta publicitaria");
-                    
-                    // Crear un mapeo de IDs de Instagram para consulta rápida
-                    $instagramAccountMap = [];
-                    foreach ($instagramAccounts as $account) {
-                        $instagramAccountMap[$account['id']] = $account;
-                    }
-                    
-                    // Ahora podemos enriquecer las campañas que tienen instagram_account_id
-                    foreach ($result as &$campaignData) {
-                        if (!empty($campaignData['instagram_account_id']) && 
-                            isset($instagramAccountMap[$campaignData['instagram_account_id']])) {
-                            $campaignData['instagram_username'] = $instagramAccountMap[$campaignData['instagram_account_id']]['username'] ?? null;
-                        }
-                    }
-                }
-            } catch (\Exception $e) {
-                Log::error("Error al obtener cuentas de Instagram: " . $e->getMessage());
-            }
-            
-            return $result;
         } catch (\Exception $e) {
-            Log::error('Error al obtener jerarquía de campañas: ' . $e->getMessage(), [
-                'account_id' => $this->adAccountId
-            ]);
-            return [];
+            Log::warning("Error obteniendo nombre de página {$pageId}: " . $e->getMessage());
         }
+        
+        return null;
+    }
+
+    /**
+     * Obtener username de Instagram (con cache)
+     */
+    private function getInstagramUsername($instagramId)
+    {
+        try {
+            $response = Http::withToken($this->accessToken)
+                ->get("https://graph.facebook.com/v18.0/{$instagramId}", [
+                    'fields' => 'username'
+                ]);
+            
+            if ($response->successful()) {
+                return $response->json('username');
+            }
+        } catch (\Exception $e) {
+            Log::warning("Error obteniendo username de Instagram {$instagramId}: " . $e->getMessage());
+        }
+        
+        return null;
     }
 
     public function getAccountInsights()
@@ -475,217 +264,67 @@ class FacebookAdsService
     }
 
     /**
-     * Obtiene los conjuntos de anuncios para una campaña específica
-     */
-    public function getAdSetsForCampaign(string $campaignId)
-    {
-        try {
-            Log::info("Solicitando conjuntos de anuncios para campaña: {$campaignId}");
-            
-            $adSetsResponse = Http::withToken($this->accessToken)
-                ->get("https://graph.facebook.com/v18.0/{$campaignId}/adsets", [
-                    'fields' => 'id,name,status,daily_budget,lifetime_budget,targeting,optimization_goal,billing_event',
-                    'limit' => 100
-                ]);
-                
-            if (!$adSetsResponse->successful()) {
-                Log::error("Error al obtener conjuntos de anuncios", [
-                    'response' => $adSetsResponse->body(),
-                    'status' => $adSetsResponse->status()
-                ]);
-                return [];
-            }
-            
-            $adSets = $adSetsResponse->json('data', []);
-            
-            // Enriquecer con información adicional si es necesario
-            foreach ($adSets as &$adSet) {
-                // Contar anuncios
-                $adsCountResponse = Http::withToken($this->accessToken)
-                    ->get("https://graph.facebook.com/v18.0/{$adSet['id']}/ads", [
-                        'limit' => 1,
-                        'summary' => 'true'
-                    ]);
-                    
-                if ($adsCountResponse->successful()) {
-                    $adSet['ads_count'] = $adsCountResponse->json('summary.total_count', 0);
-                }
-            }
-            
-            return $adSets;
-        } catch (\Exception $e) {
-            Log::error("Error obteniendo conjuntos de anuncios: " . $e->getMessage());
-            return [];
-        }
-    }
-
-    /**
-     * Obtiene los anuncios para un conjunto de anuncios específico
-     */
-    public function getAdsForAdSet(string $adSetId)
-    {
-        try {
-            Log::info("Solicitando anuncios para conjunto: {$adSetId}");
-            
-            // Limpiar ID si es necesario
-            $cleanAdSetId = str_replace('act_', '', $adSetId);
-            
-            // Solicitar campos adicionales para obtener imágenes y previsualizaciones
-            $fields = 'id,name,status,creative{id,thumbnail_url,image_url,body,title,effective_object_story_id,asset_feed_spec},adcreatives{id,name,image_url,thumbnail_url,body,title,object_story_id},preview_shareable_link';
-            
-            Log::info("URL de consulta: https://graph.facebook.com/v18.0/{$cleanAdSetId}/ads?fields={$fields}");
-            
-            $adsResponse = Http::withToken($this->accessToken)
-                ->get("https://graph.facebook.com/v18.0/{$cleanAdSetId}/ads", [
-                    'fields' => $fields,
-                    'limit' => 100
-                ]);
-                
-            // Registrar la respuesta para debugging
-            if (app()->environment('local', 'development')) {
-                Log::debug("Respuesta de la API (primeros 1000 caracteres): " . 
-                    substr($adsResponse->body(), 0, 1000) . "...");
-            }
-            
-            if (!$adsResponse->successful()) {
-                Log::error("Error al obtener anuncios", [
-                    'response' => $adsResponse->body(),
-                    'status' => $adsResponse->status(),
-                    'adset_id' => $adSetId
-                ]);
-                
-                return [
-                    'error' => true,
-                    'message' => $adsResponse->json('error.message', 'Error desconocido'),
-                    'code' => $adsResponse->json('error.code', 0)
-                ];
-            }
-            
-            $ads = $adsResponse->json('data', []);
-            
-            Log::info("Anuncios obtenidos: " . count($ads));
-            
-            // Procesar cada anuncio para extraer imágenes y preparar datos de vista previa
-            foreach ($ads as &$ad) {
-                try {
-                    // Inicializar campos de imagen
-                    $ad['image_url'] = null;
-                    $ad['thumbnail_url'] = null;
-                    $ad['preview_url'] = null;
-                    
-                    // Intentar obtener imagen de creative
-                    if (!empty($ad['creative'])) {
-                        // Opción 1: URL de imagen directa
-                        if (!empty($ad['creative']['image_url'])) {
-                            $ad['image_url'] = $ad['creative']['image_url'];
-                        }
-                        
-                        // Opción 2: URL de miniatura
-                        if (!empty($ad['creative']['thumbnail_url'])) {
-                            $ad['thumbnail_url'] = $ad['creative']['thumbnail_url'];
-                        }
-                        
-                        // Opción 3: Contenido de feed
-                        if (!empty($ad['creative']['asset_feed_spec']['images'][0]['url'])) {
-                            $ad['image_url'] = $ad['creative']['asset_feed_spec']['images'][0]['url'];
-                        }
-                        
-                        // URL de vista previa
-                        if (!empty($ad['creative']['effective_object_story_id'])) {
-                            $storyId = $ad['creative']['effective_object_story_id'];
-                            $ad['preview_url'] = "https://www.facebook.com/{$storyId}";
-                        }
-                    }
-                    
-                    // Intentar obtener de adcreatives si no hay imagen todavía
-                    if (empty($ad['image_url']) && !empty($ad['adcreatives'][0])) {
-                        if (!empty($ad['adcreatives'][0]['image_url'])) {
-                            $ad['image_url'] = $ad['adcreatives'][0]['image_url'];
-                        }
-                        
-                        if (!empty($ad['adcreatives'][0]['thumbnail_url'])) {
-                            $ad['thumbnail_url'] = $ad['adcreatives'][0]['thumbnail_url'];
-                        }
-                    }
-                    
-                    // Link compartible directo de Facebook (mejor opción)
-                    if (!empty($ad['preview_shareable_link'])) {
-                        $ad['preview_url'] = $ad['preview_shareable_link'];
-                    }
-                    
-                } catch (\Exception $e) {
-                    Log::warning("Error procesando imágenes para anuncio: " . $e->getMessage(), [
-                        'ad_id' => $ad['id'] ?? 'unknown'
-                    ]);
-                }
-            }
-            
-            return $ads;
-        } catch (\Exception $e) {
-            Log::error("Error obteniendo anuncios: " . $e->getMessage(), [
-                'adset_id' => $adSetId,
-                'trace' => $e->getTraceAsString()
-            ]);
-            
-            throw $e;
-        }
-    }
-
-    /**
-     * Sincroniza toda la jerarquía: Campaigns -> AdSets -> Ads
+     * Sincronización completa y simplificada de la jerarquía
      */
     public function syncCompleteHierarchy()
     {
         try {
-            Log::info("Iniciando sincronización completa de jerarquía para cuenta: {$this->adAccountId}");
+            Log::info("=== INICIO SINCRONIZACIÓN COMPLETA ===", ['account_id' => $this->adAccountId]);
             
-            // 1. Obtener todas las campañas
-            $campaigns = $this->getCampaignsWithAdsHierarchy();
-            
-            $campaignCount = 0;
-            $adSetCount = 0;
-            $adCount = 0;
+            $result = [
+                'campaigns_synced' => 0,
+                'adsets_synced' => 0,
+                'ads_synced' => 0,
+                'errors' => []
+            ];
+
+            // 1. PASO 1: Sincronizar campañas
+            Log::info("PASO 1: Sincronizando campañas...");
+            $campaigns = $this->getCampaigns();
             
             foreach ($campaigns as $campaignData) {
-                // 2. Crear/actualizar campaña
-                $campaign = $this->syncCampaign($campaignData);
-                $campaignCount++;
-                
-                // 3. Obtener y sincronizar adsets para esta campaña
-                $adSets = $this->getAdSetsForCampaign($campaignData['id']);
-                
-                foreach ($adSets as $adSetData) {
-                    $adSet = $this->syncAdSet($adSetData, $campaign->id);
-                    $adSetCount++;
+                try {
+                    $campaign = $this->syncCampaign($campaignData);
+                    $result['campaigns_synced']++;
                     
-                    // 4. Obtener y sincronizar ads para este adset
-                    $ads = $this->getAdsForAdSet($adSetData['id']);
+                    // 2. PASO 2: Sincronizar AdSets de la campaña
+                    Log::info("PASO 2: Sincronizando AdSets para campaña {$campaign->id}...");
+                    $adSets = $this->getAdSetsForCampaign($campaignData['id']);
                     
-                    if (!isset($ads['error'])) {
-                        foreach ($ads as $adData) {
-                            $this->syncAd($adData, $adSet->id);
-                            $adCount++;
+                    foreach ($adSets as $adSetData) {
+                        try {
+                            $adSet = $this->syncAdSet($campaign->id, $adSetData);
+                            $result['adsets_synced']++;
+                            
+                            // 3. PASO 3: Sincronizar Ads del AdSet
+                            Log::info("PASO 3: Sincronizando Ads para AdSet {$adSet->id}...");
+                            $ads = $this->getAdsForAdSet($adSetData['id']);
+                            
+                            foreach ($ads as $adData) {
+                                try {
+                                    $this->syncAd($adSet->id, $adData);
+                                    $result['ads_synced']++;
+                                } catch (\Exception $e) {
+                                    Log::error("Error sincronizando Ad: " . $e->getMessage());
+                                    $result['errors'][] = "Ad {$adData['id']}: " . $e->getMessage();
+                                }
+                            }
+                            
+                        } catch (\Exception $e) {
+                            Log::error("Error sincronizando AdSet: " . $e->getMessage());
+                            $result['errors'][] = "AdSet {$adSetData['id']}: " . $e->getMessage();
                         }
                     }
                     
-                    // Pequeña pausa para evitar rate limiting
-                    usleep(100000); // 0.1 segundos
+                } catch (\Exception $e) {
+                    Log::error("Error sincronizando campaña: " . $e->getMessage());
+                    $result['errors'][] = "Campaña {$campaignData['id']}: " . $e->getMessage();
                 }
             }
-            
-            Log::info("Sincronización completa finalizada", [
-                'campaigns' => $campaignCount,
-                'adsets' => $adSetCount,
-                'ads' => $adCount
-            ]);
-            
-            return [
-                'success' => true,
-                'campaigns' => $campaignCount,
-                'adsets' => $adSetCount,
-                'ads' => $adCount
-            ];
-            
+
+            Log::info("=== SINCRONIZACIÓN COMPLETADA ===", $result);
+            return $result;
+
         } catch (\Exception $e) {
             Log::error("Error en sincronización completa: " . $e->getMessage());
             throw $e;
@@ -693,89 +332,206 @@ class FacebookAdsService
     }
 
     /**
+     * Obtener campañas simples (SIN lógica compleja)
+     */
+    public function getCampaigns()
+    {
+        try {
+            $response = Http::withToken($this->accessToken)
+                ->get("https://graph.facebook.com/v18.0/{$this->adAccountId}/campaigns", [
+                    'fields' => 'id,name,status,objective,created_time,start_time,stop_time,daily_budget,lifetime_budget',
+                    'limit' => 100
+                ]);
+
+            if ($response->successful()) {
+                $data = $response->json();
+                Log::info("Obtenidas " . count($data['data'] ?? []) . " campañas");
+                return $data['data'] ?? [];
+            }
+
+            Log::error("Error al obtener campañas: " . $response->body());
+            return [];
+
+        } catch (\Exception $e) {
+            Log::error("Excepción al obtener campañas: " . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
      * Sincronizar una campaña individual
      */
-    private function syncCampaign($campaignData)
+    public function syncCampaign($campaignData)
     {
-        $defaultClient = \App\Models\Client::first();
-        $defaultPlan = \App\Models\Plan::first();
-        
         return \App\Models\AdsCampaign::updateOrCreate(
             ['meta_campaign_id' => $campaignData['id']],
             [
                 'name' => $campaignData['name'],
-                'client_id' => $defaultClient->id,
-                'plan_id' => $defaultPlan->id,
+                'status' => $this->mapFacebookStatus($campaignData['status']),
+                'objective' => $campaignData['objective'] ?? null,
+                'budget' => $this->parseFloatValue($campaignData['daily_budget'] ?? $campaignData['lifetime_budget'] ?? null),
+                'client_id' => null, // Se puede asignar después
+                'plan_id' => null,   // Se puede asignar después
                 'advertising_account_id' => session('selected_advertising_account_id'),
-                'start_date' => !empty($campaignData['start_time']) 
-                    ? date('Y-m-d', strtotime($campaignData['start_time'])) 
-                    : now()->format('Y-m-d'),
-                'end_date' => !empty($campaignData['stop_time']) 
-                    ? date('Y-m-d', strtotime($campaignData['stop_time'])) 
-                    : now()->addDays(30)->format('Y-m-d'),
-                'status' => $this->mapFacebookStatus($campaignData['status'] ?? 'inactive'),
+                'start_date' => $campaignData['start_time'] ?? null,
+                'end_date' => $campaignData['stop_time'] ?? null,
+                'meta_insights' => $campaignData,
                 'last_synced_at' => now(),
-                'meta_insights' => [
-                    'page_id' => $campaignData['page_id'] ?? null,
-                    'page_name' => $campaignData['page_name'] ?? null,
-                    'page_link' => $campaignData['page_link'] ?? null,
-                    'instagram_account_id' => $campaignData['instagram_account_id'] ?? null,
-                    'instagram_username' => $campaignData['instagram_username'] ?? null,
-                    'raw_status' => $campaignData['status'] ?? null,
-                    'objective' => $campaignData['objective'] ?? null,
-                    'delivery_info' => $campaignData['delivery_info'] ?? null,
-                ]
             ]
         );
     }
 
     /**
-     * Sincronizar un adset individual
+     * Obtener AdSets de una campaña
      */
-    private function syncAdSet($adSetData, $campaignId)
+    public function getAdSetsForCampaign($campaignId)
     {
-        return \App\Models\AdsSet::updateOrCreate(
-            ['meta_adset_id' => $adSetData['id']],
-            [
-                'ads_campaign_id' => $campaignId,
-                'name' => $adSetData['name'],
-                'status' => $this->mapFacebookStatus($adSetData['status'] ?? 'inactive'),
-                'daily_budget' => $adSetData['daily_budget'] ?? null,
-                'lifetime_budget' => $adSetData['lifetime_budget'] ?? null,
-                'target_spec' => $adSetData['targeting'] ?? null,
-                'optimization_goal' => $adSetData['optimization_goal'] ?? null,
-                'billing_event' => $adSetData['billing_event'] ?? null,
-                'meta_insights' => $adSetData,
-            ]
-        );
-    }
+        try {
+            $response = Http::withToken($this->accessToken)
+                ->get("https://graph.facebook.com/v18.0/{$campaignId}/adsets", [
+                    'fields' => 'id,name,status,daily_budget,lifetime_budget,targeting,optimization_goal,billing_event'
+                ]);
 
-    /**
-     * Sincronizar un ad individual
-     */
-    private function syncAd($adData, $adSetId)
-    {
-        // Función helper para truncar nombres muy largos pero mantener URLs completas
-        $truncateName = function($name, $maxLength = 500) {
-            if (strlen($name) > $maxLength) {
-                return substr($name, 0, $maxLength - 3) . '...';
+            if ($response->successful()) {
+                $data = $response->json();
+                Log::info("Obtenidos " . count($data['data'] ?? []) . " AdSets para campaña {$campaignId}");
+                return $data['data'] ?? [];
             }
-            return $name;
-        };
+
+            Log::error("Error al obtener AdSets: " . $response->body());
+            return [];
+
+        } catch (\Exception $e) {
+            Log::error("Excepción al obtener AdSets: " . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * Sincronizar un AdSet individual
+     */
+    public function syncAdSet($campaignId, $adSetData)
+    {
+        try {
+            // Convertir budgets de centavos a dólares
+            $dailyBudget = isset($adSetData['daily_budget']) ? $adSetData['daily_budget'] / 100 : null;
+            $lifetimeBudget = isset($adSetData['lifetime_budget']) ? $adSetData['lifetime_budget'] / 100 : null;
+
+            $adsSet = \App\Models\AdsSet::updateOrCreate(
+                ['meta_adset_id' => $adSetData['id']],
+                [
+                    'ads_campaign_id' => $campaignId,
+                    'name' => $adSetData['name'],
+                    'status' => $this->mapFacebookStatus($adSetData['status']),
+                    'daily_budget' => $dailyBudget,
+                    'lifetime_budget' => $lifetimeBudget,
+                    'target_spec' => $adSetData['targeting'] ?? null,
+                    'optimization_goal' => $adSetData['optimization_goal'] ?? null,
+                    'billing_event' => $adSetData['billing_event'] ?? null,
+                    'meta_insights' => $adSetData,
+                    // Campos sociales se llenarán cuando sincronicemos los ads
+                    'page_id' => null,
+                    'page_name' => null,
+                    'instagram_account_id' => null,
+                    'instagram_username' => null,
+                ]
+            );
+
+            return $adsSet;
+
+        } catch (\Exception $e) {
+            Log::error("Error sincronizando AdSet {$adSetData['id']}: " . $e->getMessage());
+            throw $e;
+        }
+    }
+
+    /**
+     * Obtener Ads de un AdSet
+     */
+    public function getAdsForAdSet($adSetId)
+    {
+        try {
+            $response = Http::withToken($this->accessToken)
+                ->get("https://graph.facebook.com/v18.0/{$adSetId}/ads", [
+                    'fields' => 'id,name,status,creative{id,object_story_spec,effective_object_story_id,object_story_id,image_url,thumbnail_url}'
+                ]);
+
+            if ($response->successful()) {
+                $data = $response->json();
+                Log::info("Obtenidos " . count($data['data'] ?? []) . " Ads para AdSet {$adSetId}");
+                return $data['data'] ?? [];
+            }
+
+            Log::error("Error al obtener Ads: " . $response->body());
+            return [];
+
+        } catch (\Exception $e) {
+            Log::error("Excepción al obtener Ads: " . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * Sincronizar un Ad individual
+     */
+    public function syncAd($adsSetId, $adData)
+    {
+        try {
+            // Extraer información social del creative
+            $socialInfo = $this->extractSocialInfo($adData['creative'] ?? []);
+
+            $ad = \App\Models\Ad::updateOrCreate(
+                ['meta_ad_id' => $adData['id']],
+                [
+                    'ads_set_id' => $adsSetId,
+                    'name' => $adData['name'],
+                    'status' => $this->mapFacebookStatus($adData['status']),
+                    'creative_id' => $adData['creative']['id'] ?? null,
+                    'creative_url' => $adData['creative']['image_url'] ?? null,
+                    'thumbnail_url' => $adData['creative']['thumbnail_url'] ?? null,
+                    'preview_url' => null, // Se puede agregar después
+                    'meta_insights' => $adData,
+                    'page_id' => $socialInfo['page_id'],
+                    'page_name' => $socialInfo['page_name'],
+                    'instagram_account_id' => $socialInfo['instagram_account_id'],
+                    'instagram_username' => $socialInfo['instagram_username'],
+                ]
+            );
+
+            // Actualizar el AdSet con la información social si no la tiene
+            $adSet = \App\Models\AdsSet::find($adsSetId);
+            if ($adSet && !$adSet->page_id && $socialInfo['page_id']) {
+                $adSet->update([
+                    'page_id' => $socialInfo['page_id'],
+                    'page_name' => $socialInfo['page_name'],
+                    'instagram_account_id' => $socialInfo['instagram_account_id'],
+                    'instagram_username' => $socialInfo['instagram_username'],
+                ]);
+            }
+
+            return $ad;
+
+        } catch (\Exception $e) {
+            Log::error("Error sincronizando Ad {$adData['id']}: " . $e->getMessage());
+            throw $e;
+        }
+    }
+
+    /**
+     * Helper para parsear valores float
+     */
+    private function parseFloatValue($value)
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
         
-        return \App\Models\Ad::updateOrCreate(
-            ['meta_ad_id' => $adData['id']],
-            [
-                'ads_set_id' => $adSetId,
-                'name' => $truncateName($adData['name'] ?? 'Sin nombre'),
-                'status' => $this->mapFacebookStatus($adData['status'] ?? 'inactive'),
-                'creative_id' => $adData['creative']['id'] ?? null,
-                'creative_url' => $adData['creative']['image_url'] ?? $adData['image_url'] ?? null,
-                'thumbnail_url' => $adData['creative']['thumbnail_url'] ?? $adData['thumbnail_url'] ?? null,
-                'preview_url' => $adData['preview_shareable_link'] ?? $adData['preview_url'] ?? null,
-                'meta_insights' => $adData,
-            ]
-        );
+        // Facebook devuelve budgets en centavos
+        if (is_numeric($value)) {
+            return (float) $value / 100;
+        }
+        
+        return null;
     }
 
     /**

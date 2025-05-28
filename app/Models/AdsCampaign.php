@@ -62,31 +62,5 @@ class AdsCampaign extends Model
         return $this->hasManyThrough(Ad::class, AdsSet::class, 'ads_campaign_id', 'ads_set_id');
     }
 
-    public function syncWithFacebook()
-    {
-        if (!$this->meta_campaign_id || !$this->advertising_account_id) {
-            return false;
-        }
-        
-        try {
-            $service = new FacebookAdsService();
-            $insights = $service->getCampaignInsights($this->advertising_account_id, $this->meta_campaign_id);
-            
-            if (empty($insights)) {
-                return false;
-            }
-            
-            $this->update([
-                'actual_cost' => $insights['spend'] ?? $this->actual_cost,
-                'cost_per_conversion' => $insights['cost_per_conversion'] ?? $this->cost_per_conversion,
-                'last_synced_at' => now(),
-                'meta_insights' => $insights,
-            ]);
-            
-            return true;
-        } catch (\Exception $e) {
-            Log::error("Error syncing campaign {$this->id}: " . $e->getMessage());
-            return false;
-        }
-    }
+    
 }

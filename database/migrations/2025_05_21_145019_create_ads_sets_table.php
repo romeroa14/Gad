@@ -23,6 +23,10 @@ return new class extends Migration
             $table->float('daily_budget')->nullable();
             $table->float('lifetime_budget')->nullable();
             $table->json('meta_insights');
+            $table->string('page_id')->nullable()->after('meta_insights');
+            $table->string('page_name')->nullable()->after('page_id');
+            $table->string('instagram_account_id')->nullable()->after('page_name');
+            $table->string('instagram_username')->nullable()->after('instagram_account_id');
             $table->timestamps();
         });
     }

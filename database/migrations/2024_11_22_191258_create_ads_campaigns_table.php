@@ -18,15 +18,15 @@ return new class extends Migration
         Schema::create('ads_campaigns', function (Blueprint $table) {
             $table->id();
             $table->text('name');
-            $table->foreignId('client_id')->constrained('clients')->onDelete('cascade')->nullable();
-            $table->foreignId('plan_id')->constrained('plans')->onDelete('cascade')->nullable();
+            $table->unsignedBigInteger('client_id')->nullable();
+            $table->unsignedBigInteger('plan_id')->nullable();
             $table->foreignId('advertising_account_id')->nullable()->constrained('advertising_accounts')->onDelete('set null');
             $table->string('meta_campaign_id', 50)->nullable()->index();
             
             // Información básica de la campaña
             $table->date('start_date');
             $table->date('end_date');
-            $table->decimal('budget', 15, 2)->default(0);
+            $table->decimal('budget', 15, 2)->nullable()->default(0);
             $table->decimal('actual_cost', 15, 2)->nullable();
             $table->decimal('cost_per_conversion', 15, 2)->nullable();
             $table->string('status');
