@@ -17,11 +17,11 @@ return new class extends Migration
         // Creamos la tabla con la estructura básica necesaria
         Schema::create('ads_campaigns', function (Blueprint $table) {
             $table->id();
-            $table->string('name');
+            $table->text('name');
             $table->foreignId('client_id')->constrained('clients')->onDelete('cascade')->nullable();
             $table->foreignId('plan_id')->constrained('plans')->onDelete('cascade')->nullable();
             $table->foreignId('advertising_account_id')->nullable()->constrained('advertising_accounts')->onDelete('set null');
-            $table->string('meta_campaign_id')->nullable()->index();
+            $table->string('meta_campaign_id', 50)->nullable()->index();
             
             // Información básica de la campaña
             $table->date('start_date');

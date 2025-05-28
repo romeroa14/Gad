@@ -630,5 +630,178 @@ class FacebookAdsService
             throw $e;
         }
     }
+
+    /**
+     * Sincroniza toda la jerarquía: Campaigns -> AdSets -> Ads
+     */
+    public function syncCompleteHierarchy()
+    {
+        try {
+            Log::info("Iniciando sincronización completa de jerarquía para cuenta: {$this->adAccountId}");
+            
+            // 1. Obtener todas las campañas
+            $campaigns = $this->getCampaignsWithAdsHierarchy();
+            
+            $campaignCount = 0;
+            $adSetCount = 0;
+            $adCount = 0;
+            
+            foreach ($campaigns as $campaignData) {
+                // 2. Crear/actualizar campaña
+                $campaign = $this->syncCampaign($campaignData);
+                $campaignCount++;
+                
+                // 3. Obtener y sincronizar adsets para esta campaña
+                $adSets = $this->getAdSetsForCampaign($campaignData['id']);
+                
+                foreach ($adSets as $adSetData) {
+                    $adSet = $this->syncAdSet($adSetData, $campaign->id);
+                    $adSetCount++;
+                    
+                    // 4. Obtener y sincronizar ads para este adset
+                    $ads = $this->getAdsForAdSet($adSetData['id']);
+                    
+                    if (!isset($ads['error'])) {
+                        foreach ($ads as $adData) {
+                            $this->syncAd($adData, $adSet->id);
+                            $adCount++;
+                        }
+                    }
+                    
+                    // Pequeña pausa para evitar rate limiting
+                    usleep(100000); // 0.1 segundos
+                }
+            }
+            
+            Log::info("Sincronización completa finalizada", [
+                'campaigns' => $campaignCount,
+                'adsets' => $adSetCount,
+                'ads' => $adCount
+            ]);
+            
+            return [
+                'success' => true,
+                'campaigns' => $campaignCount,
+                'adsets' => $adSetCount,
+                'ads' => $adCount
+            ];
+            
+        } catch (\Exception $e) {
+            Log::error("Error en sincronización completa: " . $e->getMessage());
+            throw $e;
+        }
+    }
+
+    /**
+     * Sincronizar una campaña individual
+     */
+    private function syncCampaign($campaignData)
+    {
+        $defaultClient = \App\Models\Client::first();
+        $defaultPlan = \App\Models\Plan::first();
+        
+        return \App\Models\AdsCampaign::updateOrCreate(
+            ['meta_campaign_id' => $campaignData['id']],
+            [
+                'name' => $campaignData['name'],
+                'client_id' => $defaultClient->id,
+                'plan_id' => $defaultPlan->id,
+                'advertising_account_id' => session('selected_advertising_account_id'),
+                'start_date' => !empty($campaignData['start_time']) 
+                    ? date('Y-m-d', strtotime($campaignData['start_time'])) 
+                    : now()->format('Y-m-d'),
+                'end_date' => !empty($campaignData['stop_time']) 
+                    ? date('Y-m-d', strtotime($campaignData['stop_time'])) 
+                    : now()->addDays(30)->format('Y-m-d'),
+                'status' => $this->mapFacebookStatus($campaignData['status'] ?? 'inactive'),
+                'last_synced_at' => now(),
+                'meta_insights' => [
+                    'page_id' => $campaignData['page_id'] ?? null,
+                    'page_name' => $campaignData['page_name'] ?? null,
+                    'page_link' => $campaignData['page_link'] ?? null,
+                    'instagram_account_id' => $campaignData['instagram_account_id'] ?? null,
+                    'instagram_username' => $campaignData['instagram_username'] ?? null,
+                    'raw_status' => $campaignData['status'] ?? null,
+                    'objective' => $campaignData['objective'] ?? null,
+                    'delivery_info' => $campaignData['delivery_info'] ?? null,
+                ]
+            ]
+        );
+    }
+
+    /**
+     * Sincronizar un adset individual
+     */
+    private function syncAdSet($adSetData, $campaignId)
+    {
+        return \App\Models\AdsSet::updateOrCreate(
+            ['meta_adset_id' => $adSetData['id']],
+            [
+                'ads_campaign_id' => $campaignId,
+                'name' => $adSetData['name'],
+                'status' => $this->mapFacebookStatus($adSetData['status'] ?? 'inactive'),
+                'daily_budget' => $adSetData['daily_budget'] ?? null,
+                'lifetime_budget' => $adSetData['lifetime_budget'] ?? null,
+                'target_spec' => $adSetData['targeting'] ?? null,
+                'optimization_goal' => $adSetData['optimization_goal'] ?? null,
+                'billing_event' => $adSetData['billing_event'] ?? null,
+                'meta_insights' => $adSetData,
+            ]
+        );
+    }
+
+    /**
+     * Sincronizar un ad individual
+     */
+    private function syncAd($adData, $adSetId)
+    {
+        // Función helper para truncar nombres muy largos pero mantener URLs completas
+        $truncateName = function($name, $maxLength = 500) {
+            if (strlen($name) > $maxLength) {
+                return substr($name, 0, $maxLength - 3) . '...';
+            }
+            return $name;
+        };
+        
+        return \App\Models\Ad::updateOrCreate(
+            ['meta_ad_id' => $adData['id']],
+            [
+                'ads_set_id' => $adSetId,
+                'name' => $truncateName($adData['name'] ?? 'Sin nombre'),
+                'status' => $this->mapFacebookStatus($adData['status'] ?? 'inactive'),
+                'creative_id' => $adData['creative']['id'] ?? null,
+                'creative_url' => $adData['creative']['image_url'] ?? $adData['image_url'] ?? null,
+                'thumbnail_url' => $adData['creative']['thumbnail_url'] ?? $adData['thumbnail_url'] ?? null,
+                'preview_url' => $adData['preview_shareable_link'] ?? $adData['preview_url'] ?? null,
+                'meta_insights' => $adData,
+            ]
+        );
+    }
+
+    /**
+     * Mapear estados de Facebook a estados locales
+     */
+    private function mapFacebookStatus($facebookStatus)
+    {
+        $status = strtoupper(trim($facebookStatus));
+        
+        switch ($status) {
+            case 'ACTIVE':
+                return 'active';
+            case 'PAUSED':
+                return 'paused';
+            case 'ARCHIVED':
+            case 'COMPLETED':
+                return 'completed';
+            case 'DELETED':
+                return 'deleted';
+            case 'DISAPPROVED':
+                return 'rejected';
+            case 'WITH_ISSUES':
+                return 'issue';
+            default:
+                return 'inactive';
+        }
+    }
 }
 

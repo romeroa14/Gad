@@ -85,6 +85,9 @@ class AdsCampaignResource extends Resource
                             'selected_advertising_account_id' => $account->id,
                             'selected_advertising_account_fb_id' => $account->account_id
                         ]);
+
+                        AdsCampaign::truncate();
+                    
                         
                         Notification::make()
                             ->title('Cuenta seleccionada')
@@ -102,119 +105,28 @@ class AdsCampaignResource extends Resource
                     ->requiresConfirmation()
                     ->action(function() use ($selectedAccount) {
                         try {
+                            // Truncar tablas para datos frescos
+                            \App\Models\Ad::truncate();
+                            \App\Models\AdsSet::truncate();
+                            \App\Models\AdsCampaign::truncate();
+                            
                             $service = new FacebookAdsService($selectedAccount->account_id);
                             
-                            // Usar el método mejorado para obtener la jerarquía completa con page_id e instagram_id
-                            $campaigns = $service->getCampaignsWithAdsHierarchy();
-                            
-                            // Obtener un cliente y plan por defecto
-                            $defaultClient = \App\Models\Client::first();
-                            $defaultPlan = \App\Models\Plan::first();
-                            
-                            if (!$defaultClient) {
+                            // Verificar que existan cliente y plan por defecto
+                            if (!\App\Models\Client::first()) {
                                 throw new \Exception('Necesitas crear al menos un cliente antes de importar campañas');
                             }
                             
-                            if (!$defaultPlan) {
+                            if (!\App\Models\Plan::first()) {
                                 throw new \Exception('Necesitas crear al menos un plan antes de importar campañas');
                             }
                             
-                            $importedCount = 0;
-                            $updatedWithInsightsCount = 0;
-                            $stateMap = [];
-                            
-                            // Log para debug
-                            Log::info('Iniciando importación de campañas', [
-                                'cuenta' => $selectedAccount->name, 
-                                'total_campañas' => count($campaigns)
-                            ]);
-                            
-                            // Función auxiliar para mapear estados - definida dentro del closure
-                            $mapFacebookStatus = function($facebookStatus) {
-                                $status = strtoupper(trim($facebookStatus));
-                                
-                                switch ($status) {
-                                    case 'ACTIVE':
-                                        return 'activa';
-                                    case 'PAUSED':
-                                        return 'pausada';
-                                    case 'ARCHIVED':
-                                    case 'COMPLETED':
-                                        return 'completada';
-                                    case 'DELETED':
-                                        return 'eliminada';
-                                    case 'DISAPPROVED':
-                                        return 'rechazada';
-                                    case 'WITH_ISSUES':
-                                        return 'con problemas';
-                                    default:
-                                        Log::warning("Estado de Facebook desconocido: $facebookStatus", [
-                                            'mapped_to' => 'inactiva'
-                                        ]);
-                                        return 'inactiva';
-                                }
-                            };
-                            
-                            foreach ($campaigns as $campaignData) {
-                                // Usar la función auxiliar definida arriba
-                                $status = $mapFacebookStatus($campaignData['status'] ?? 'ACTIVE');
-                                
-                                // Procesar fechas
-                                $startDate = !empty($campaignData['start_time']) 
-                                    ? date('Y-m-d', strtotime($campaignData['start_time'])) 
-                                    : now()->format('Y-m-d');
-                                    
-                                $endDate = !empty($campaignData['stop_time']) 
-                                    ? date('Y-m-d', strtotime($campaignData['stop_time'])) 
-                                    : now()->addDays(30)->format('Y-m-d');
-                                
-                                // Compilar toda la información para meta_insights
-                                $metaInsights = [
-                                    'page_id' => $campaignData['page_id'] ?? null,
-                                    'page_name' => $campaignData['page_name'] ?? null,
-                                    'page_link' => $campaignData['page_link'] ?? null,
-                                    'instagram_account_id' => $campaignData['instagram_account_id'] ?? null,
-                                    'instagram_username' => $campaignData['instagram_username'] ?? null,
-                                    'raw_status' => $campaignData['status'] ?? null, // Guardar el estado original
-                                    'delivery_info' => $campaignData['effective_status'] ?? $campaignData['status'] ?? null, // Guardar información de entrega
-                                ];
-                                
-                                // Crear o actualizar la campaña
-                                $campaign = AdsCampaign::updateOrCreate(
-                                    ['meta_campaign_id' => $campaignData['id']],
-                                    [
-                                        'name' => $campaignData['name'],
-                                        'client_id' => $defaultClient->id,
-                                        'plan_id' => $defaultPlan->id,
-                                        'advertising_account_id' => $selectedAccount->id,
-                                        'status' => $status,
-                                        'budget' => 0,                   // Valor predeterminado
-                                        'actual_cost' => 0,              // Valor predeterminado
-                                        'start_date' => $startDate,
-                                        'end_date' => $endDate,
-                                        'meta_insights' => $metaInsights, // Guardar toda la información recolectada
-                                    ]
-                                );
-                                
-                                // Limpiar caché para esta campaña
-                                Cache::forget("campaign_fanpage_{$campaign->id}");
-                                
-                                // Registrar los estados para información
-                                if (!isset($stateMap[$status])) {
-                                    $stateMap[$status] = 0;
-                                }
-                                $stateMap[$status]++;
-                                
-                                $importedCount++;
-                                
-                                if (!empty($metaInsights['page_id']) || !empty($metaInsights['instagram_account_id'])) {
-                                    $updatedWithInsightsCount++;
-                                }
-                            }
+                            // Sincronizar toda la jerarquía
+                            $result = $service->syncCompleteHierarchy();
                             
                             \Filament\Notifications\Notification::make()
-                                ->title("Campañas sincronizadas")
-                                ->body("{$importedCount} campañas en total, {$updatedWithInsightsCount} con información de página/Instagram. Estados: " . json_encode($stateMap))
+                                ->title("Sincronización completa exitosa")
+                                ->body("Campañas: {$result['campaigns']}, AdSets: {$result['adsets']}, Ads: {$result['ads']}")
                                 ->success()
                                 ->send();
                         } catch (\Exception $e) {
@@ -423,62 +335,20 @@ class AdsCampaignResource extends Resource
                     ->sortable(),
                 
                 Tables\Columns\TextColumn::make('adsets_count')
-                    ->label('Conjuntos')
+                    ->label('AdSets')
                     ->getStateUsing(function (AdsCampaign $record) {
-                        // Usar caché para mejorar rendimiento
-                        $cacheKey = "adsets_count_" . $record->meta_campaign_id;
-                        return Cache::remember($cacheKey, now()->addMinutes(60), function() use ($record) {
-                            if (empty($record->meta_campaign_id)) return 0;
-                            
-                            try {
-                                // Buscar cuenta publicitaria para esta campaña
-                                $accountId = $record->advertisingAccount?->account_id;
-                                $service = new FacebookAdsService($accountId);
-                                $adSets = $service->getAdSetsForCampaign($record->meta_campaign_id);
-                                
-                                return count($adSets);
-                            } catch (\Exception $e) {
-                                Log::error("Error obteniendo conteo de adsets: " . $e->getMessage());
-                                return 0;
-                            }
-                        });
+                        // Usar base de datos local en lugar de API
+                        return \App\Models\AdsSet::where('ads_campaign_id', $record->id)->count();
                     })
                     ->tooltip('Número de conjuntos de anuncios'),
                 
                 Tables\Columns\TextColumn::make('ads_count')
                     ->label('Anuncios')
                     ->getStateUsing(function (AdsCampaign $record) {
-                        $cacheKey = "ads_count_" . $record->meta_campaign_id;
-                        return Cache::remember($cacheKey, now()->addMinutes(60), function() use ($record) {
-                            if (empty($record->meta_campaign_id)) return 0;
-                            
-                            try {
-                                // Buscar cuenta publicitaria para esta campaña
-                                $accountId = $record->advertisingAccount?->account_id;
-                                $service = new FacebookAdsService($accountId);
-                                
-                                // Obtener todos los adsets de la campaña
-                                $adSets = $service->getAdSetsForCampaign($record->meta_campaign_id);
-                                
-                                // Contar todos los anuncios en todos los adsets
-                                $totalAds = 0;
-                                foreach ($adSets as $adSet) {
-                                    // Si el adset tiene un contador precalculado, usarlo
-                                    if (isset($adSet['ads_count'])) {
-                                        $totalAds += $adSet['ads_count'];
-                                    } else {
-                                        // Si no, hacer consulta para obtener los anuncios del adset
-                                        $ads = $service->getAdsForAdSet($adSet['id']);
-                                        $totalAds += count($ads);
-                                    }
-                                }
-                                
-                                return $totalAds;
-                            } catch (\Exception $e) {
-                                Log::error("Error obteniendo conteo de anuncios: " . $e->getMessage());
-                                return 0;
-                            }
-                        });
+                        // Usar base de datos local en lugar de API
+                        return \App\Models\Ad::whereHas('adsSet', function($query) use ($record) {
+                            $query->where('ads_campaign_id', $record->id);
+                        })->count();
                     })
                     ->tooltip('Número total de anuncios'),
             ])

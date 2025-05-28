@@ -14,13 +14,14 @@ return new class extends Migration
         Schema::create('ads_sets', function (Blueprint $table) {
             $table->id();
             $table->foreignId('ads_campaign_id')->constrained('ads_campaigns');
-            $table->string('meta_adset_id');
-            $table->string('name');
+            $table->string('meta_adset_id', 50);
+            $table->text('name');
             $table->string('status');
-            $table->string('target_spec');
-            $table->string('billing_event');
-            $table->float('daily_budget');
-            $table->float('lifetime_budget');
+            $table->string('optimization_goal')->nullable()->after('target_spec');
+            $table->json('target_spec')->nullable();
+            $table->string('billing_event')->nullable();
+            $table->float('daily_budget')->nullable();
+            $table->float('lifetime_budget')->nullable();
             $table->json('meta_insights');
             $table->timestamps();
         });

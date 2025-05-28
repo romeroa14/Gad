@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Log;
 use App\Services\FacebookAds\FacebookAdsService;
 use App\Models\Client;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 
 class AdsCampaign extends Model
 {
@@ -50,9 +52,14 @@ class AdsCampaign extends Model
         return $this->belongsTo(AdvertisingAccount::class);
     }
 
-    public function adSets()
+    public function adsSets(): HasMany
     {
-        return $this->hasMany(AdsSet::class);
+        return $this->hasMany(AdsSet::class, 'ads_campaign_id');
+    }
+
+    public function ads()
+    {
+        return $this->hasManyThrough(Ad::class, AdsSet::class, 'ads_campaign_id', 'ads_set_id');
     }
 
     public function syncWithFacebook()

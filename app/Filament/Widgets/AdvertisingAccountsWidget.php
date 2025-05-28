@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Log;
 use Filament\Widgets\Widget;
 use Illuminate\Support\Facades\Session;
 use Filament\Notifications\Notification;
+use App\Services\FacebookAds\FacebookAdsService;
 
 class AdvertisingAccountsWidget extends Widget
 {
@@ -124,9 +125,35 @@ class AdvertisingAccountsWidget extends Widget
             // Notificar al usuario
             Notification::make()
                 ->title('Cuenta seleccionada')
-                ->body("Ahora estás trabajando con la cuenta: {$account->name}")
+                ->body("Ahora estás trabajando con la cuenta: {$account->name}. Sincronizando datos...")
                 ->success()
                 ->send();
+            
+            // Sincronizar jerarquía completa en segundo plano
+            try {
+                // Truncar datos antiguos
+                \App\Models\Ad::truncate();
+                \App\Models\AdsSet::truncate();
+                \App\Models\AdsCampaign::truncate();
+                
+                $service = new FacebookAdsService($account->account_id);
+                $result = $service->syncCompleteHierarchy();
+                
+                Notification::make()
+                    ->title('Sincronización completada')
+                    ->body("Datos actualizados: {$result['campaigns']} campañas, {$result['adsets']} adsets, {$result['ads']} ads")
+                    ->success()
+                    ->send();
+                
+            } catch (\Exception $e) {
+                Log::error('Error en sincronización automática: ' . $e->getMessage());
+                
+                Notification::make()
+                    ->title('Advertencia')
+                    ->body('Cuenta seleccionada, pero hubo un error en la sincronización automática. Puedes sincronizar manualmente.')
+                    ->warning()
+                    ->send();
+            }
             
             // Registrar esta acción
             Log::info('Cuenta publicitaria seleccionada', [

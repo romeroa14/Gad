@@ -15,12 +15,12 @@ return new class extends Migration
             $table->id();
             $table->foreignId('ads_set_id')->constrained('ads_sets');
             $table->string('meta_ad_id');
-            $table->string('name');
+            $table->text('name');
             $table->string('status');
-            $table->string('creative_id');
-            $table->string('creative_url');
-            $table->string('thumbnail_url');
-            $table->string('preview_url');
+            $table->string('creative_id', 50)->nullable();
+            $table->text('creative_url')->nullable();
+            $table->text('thumbnail_url')->nullable();
+            $table->text('preview_url')->nullable();
             $table->json('meta_insights');
             $table->timestamps();
         });
