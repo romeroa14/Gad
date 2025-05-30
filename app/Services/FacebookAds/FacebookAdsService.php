@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Session;
 use App\Models\AdvertisingAccount;
 use App\Models\AdsSet;
 use App\Models\Ad;
+use App\Models\AdsCampaign;
 
 class FacebookAdsService
 {
@@ -19,6 +20,14 @@ class FacebookAdsService
     protected $adAccount;
     protected $accessToken;
     protected $adAccountId;
+
+    /**
+     * Rate limiting configuración
+     */
+    private const MAX_CALLS_PER_MINUTE = 25;
+    private const DELAY_BETWEEN_CALLS = 2.5; // segundos
+    private const MAX_RETRIES = 3;
+    private const RETRY_DELAY = 10; // segundos
 
     public function __construct($accountId = null)
     {
@@ -264,147 +273,304 @@ class FacebookAdsService
     }
 
     /**
-     * Sincronización completa y simplificada de la jerarquía
+     * Sincronización completa con procesamiento por lotes
      */
-    public function syncCompleteHierarchy()
+    public function syncCompleteHierarchy($batchSize = 10)
     {
         try {
-            Log::info("=== INICIO SINCRONIZACIÓN COMPLETA ===", ['account_id' => $this->adAccountId]);
+            Log::info("=== INICIO SINCRONIZACIÓN POR LOTES ===", [
+                'account_id' => $this->adAccountId,
+                'batch_size' => $batchSize
+            ]);
             
             $result = [
                 'campaigns_synced' => 0,
                 'adsets_synced' => 0,
                 'ads_synced' => 0,
-                'errors' => []
+                'errors' => [],
+                'batches_processed' => 0
             ];
 
-            // 1. PASO 1: Sincronizar campañas
-            Log::info("PASO 1: Sincronizando campañas...");
+            // 1. Obtener todas las campañas
             $campaigns = $this->getCampaigns();
+            $totalCampaigns = count($campaigns);
             
-            foreach ($campaigns as $campaignData) {
-                try {
-                    $campaign = $this->syncCampaign($campaignData);
-                    $result['campaigns_synced']++;
-                    
-                    // 2. PASO 2: Sincronizar AdSets de la campaña
-                    Log::info("PASO 2: Sincronizando AdSets para campaña {$campaign->id}...");
-                    $adSets = $this->getAdSetsForCampaign($campaignData['id']);
-                    
-                    foreach ($adSets as $adSetData) {
-                        try {
-                            $adSet = $this->syncAdSet($campaign->id, $adSetData);
-                            $result['adsets_synced']++;
-                            
-                            // 3. PASO 3: Sincronizar Ads del AdSet
-                            Log::info("PASO 3: Sincronizando Ads para AdSet {$adSet->id}...");
-                            $ads = $this->getAdsForAdSet($adSetData['id']);
-                            
-                            foreach ($ads as $adData) {
-                                try {
-                                    $this->syncAd($adSet->id, $adData);
-                                    $result['ads_synced']++;
-                                } catch (\Exception $e) {
-                                    Log::error("Error sincronizando Ad: " . $e->getMessage());
-                                    $result['errors'][] = "Ad {$adData['id']}: " . $e->getMessage();
+            // 2. Procesar campañas en lotes
+            $campaignBatches = array_chunk($campaigns, $batchSize);
+            
+            foreach ($campaignBatches as $batchIndex => $campaignBatch) {
+                Log::info("=== PROCESANDO LOTE " . ($batchIndex + 1) . "/" . count($campaignBatches) . " ===", [
+                    'campaigns_in_batch' => count($campaignBatch),
+                    'total_campaigns' => $totalCampaigns
+                ]);
+                
+                foreach ($campaignBatch as $campaignData) {
+                    try {
+                        // Sincronizar campaña
+                        $campaign = $this->syncCampaign($campaignData);
+                        $result['campaigns_synced']++;
+                        
+                        // Sincronizar AdSets de la campaña
+                        $adSets = $this->getAdSetsForCampaign($campaignData['id']);
+                        
+                        foreach ($adSets as $adSetData) {
+                            try {
+                                $adSet = $this->syncAdSet($campaign->id, $adSetData);
+                                $result['adsets_synced']++;
+                                
+                                // Sincronizar Ads del AdSet
+                                $ads = $this->getAdsForAdSet($adSetData['id']);
+                                
+                                foreach ($ads as $adData) {
+                                    try {
+                                        $this->syncAd($adSet->id, $adData);
+                                        $result['ads_synced']++;
+                                    } catch (\Exception $e) {
+                                        Log::error("Error sincronizando Ad: " . $e->getMessage());
+                                        $result['errors'][] = "Ad {$adData['id']}: " . $e->getMessage();
+                                    }
                                 }
+                                
+                            } catch (\Exception $e) {
+                                Log::error("Error sincronizando AdSet: " . $e->getMessage());
+                                $result['errors'][] = "AdSet {$adSetData['id']}: " . $e->getMessage();
                             }
-                            
-                        } catch (\Exception $e) {
-                            Log::error("Error sincronizando AdSet: " . $e->getMessage());
-                            $result['errors'][] = "AdSet {$adSetData['id']}: " . $e->getMessage();
                         }
+                        
+                    } catch (\Exception $e) {
+                        Log::error("Error sincronizando campaña: " . $e->getMessage());
+                        $result['errors'][] = "Campaña {$campaignData['id']}: " . $e->getMessage();
                     }
-                    
-                } catch (\Exception $e) {
-                    Log::error("Error sincronizando campaña: " . $e->getMessage());
-                    $result['errors'][] = "Campaña {$campaignData['id']}: " . $e->getMessage();
+                }
+                
+                $result['batches_processed']++;
+                
+                // Pausa más larga entre lotes
+                if ($batchIndex < count($campaignBatches) - 1) {
+                    Log::info("Pausa entre lotes de 30 segundos...");
+                    sleep(30);
                 }
             }
 
             Log::info("=== SINCRONIZACIÓN COMPLETADA ===", $result);
             return $result;
-
+            
         } catch (\Exception $e) {
-            Log::error("Error en sincronización completa: " . $e->getMessage());
+            Log::error('Error en sincronización completa: ' . $e->getMessage());
+            return ['error' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Hacer llamada con rate limiting y retry
+     */
+    private function makeApiCallWithRetry($apiCall, $description = 'API Call')
+    {
+        $attempts = 0;
+        $maxAttempts = self::MAX_RETRIES;
+        
+        while ($attempts < $maxAttempts) {
+            try {
+                // Delay entre llamadas para respetar rate limits
+                if ($attempts > 0) {
+                    $delay = self::RETRY_DELAY * $attempts;
+                    Log::info("Reintentando en {$delay} segundos...", ['description' => $description, 'attempt' => $attempts + 1]);
+                    sleep($delay);
+                } else {
+                    // Delay normal entre llamadas
+                    usleep(self::DELAY_BETWEEN_CALLS * 1000000); // convertir a microsegundos
+                }
+                
+                Log::info("Ejecutando: {$description}", ['attempt' => $attempts + 1]);
+                return $apiCall();
+                
+            } catch (\Exception $e) {
+                $attempts++;
+                
+                // Verificar si es rate limit error
+                if ($this->isRateLimitError($e)) {
+                    Log::warning("Rate limit alcanzado. Reintentando...", [
+                        'description' => $description,
+                        'attempt' => $attempts,
+                        'max_attempts' => $maxAttempts,
+                        'error' => $e->getMessage()
+                    ]);
+                    
+                    if ($attempts >= $maxAttempts) {
+                        Log::error("Máximo de reintentos alcanzado para: {$description}");
+                        throw $e;
+                    }
+                    continue;
+                }
+                
+                // Si no es rate limit, fallar inmediatamente
+                Log::error("Error no relacionado con rate limit: {$description}", ['error' => $e->getMessage()]);
+                throw $e;
+            }
+        }
+    }
+
+    /**
+     * Verificar si el error es de rate limiting
+     */
+    private function isRateLimitError($exception)
+    {
+        $message = $exception->getMessage();
+        return strpos($message, 'User request limit reached') !== false ||
+               strpos($message, 'rate limit') !== false ||
+               strpos($message, 'too many calls') !== false;
+    }
+
+    /**
+     * Obtener campañas con campos completos usando SDK
+     */
+    public function getCampaigns()
+    {
+        return $this->makeApiCallWithRetry(function() {
+            // Usar el SDK de Facebook en lugar de HTTP directo
+            $adAccount = new AdAccount($this->adAccountId);
+            
+            $campaigns = $adAccount->getCampaigns(
+                [
+                    'effective_status' => ['ACTIVE', 'PAUSED', 'DELETED', 'ARCHIVED']
+                ],
+                [
+                    'id',
+                    'name', 
+                    'status',
+                    'effective_status',
+                    'objective',
+                    'created_time',
+                    'start_time',
+                    'stop_time',
+                    'daily_budget',
+                    'lifetime_budget',
+                    'updated_time'
+                ]
+            );
+
+            $result = $campaigns->getResponse()->getContent();
+            $campaignsData = $result['data'] ?? [];
+            
+            Log::info("Campañas obtenidas con SDK de Facebook", [
+                'total_campaigns' => count($campaignsData),
+                'sample_campaign' => !empty($campaignsData) ? $campaignsData[0] : null
+            ]);
+
+            return $campaignsData;
+        }, "Campañas con SDK");
+    }
+
+    /**
+     * Sincronizar una campaña con validación de datos
+     */
+    public function syncCampaign($campaignData)
+    {
+        try {
+            // Validar que los datos mínimos estén presentes
+            if (empty($campaignData['id'])) {
+                throw new \Exception("ID de campaña faltante en los datos");
+            }
+
+            // Debuggear los datos que llegam
+            Log::info("Datos de campaña recibidos:", $campaignData);
+
+            // Extraer información adicional del nombre (si existe)
+            $campaignInfo = $this->extractCampaignInfo($campaignData['name'] ?? 'Campaña sin nombre');
+            
+            // Preparar datos con valores por defecto
+            $syncData = [
+                'name' => $campaignData['name'] ?? "Campaña {$campaignData['id']}",
+                'status' => $this->mapFacebookStatus($campaignData['status'] ?? null),
+                'budget' => $this->parseFloatValue($campaignData['daily_budget'] ?? $campaignData['lifetime_budget'] ?? null),
+                'client_id' => $campaignInfo['client_id'],
+                'plan_id' => $campaignInfo['plan_id'],
+                'advertising_account_id' => session('selected_advertising_account_id'),
+                'start_date' => !empty($campaignData['start_time']) ? new \DateTime($campaignData['start_time']) : null,
+                'end_date' => !empty($campaignData['stop_time']) ? new \DateTime($campaignData['stop_time']) : null,
+                'meta_insights' => $campaignData,
+                'last_synced_at' => now()
+            ];
+
+            $campaign = AdsCampaign::updateOrCreate(
+                ['meta_campaign_id' => $campaignData['id']],
+                $syncData
+            );
+
+            Log::info("Campaña sincronizada exitosamente", [
+                'id' => $campaign->id,
+                'meta_id' => $campaign->meta_campaign_id,
+                'name' => $campaign->name,
+                'status' => $campaign->status
+            ]);
+
+            return $campaign;
+            
+        } catch (\Exception $e) {
+            Log::error("Error sincronizando campaña: " . $e->getMessage(), [
+                'campaign_data' => $campaignData
+            ]);
             throw $e;
         }
     }
 
     /**
-     * Obtener campañas simples (SIN lógica compleja)
+     * Extraer client_id y plan_id del nombre de la campaña
+     * Ejemplo: "Cliente ABC | Campaña XYZ" -> buscar cliente "Cliente ABC"
      */
-    public function getCampaigns()
+    private function extractCampaignInfo($campaignName)
     {
+        $client_id = null;
+        $plan_id = null;
+        
         try {
-            $response = Http::withToken($this->accessToken)
-                ->get("https://graph.facebook.com/v18.0/{$this->adAccountId}/campaigns", [
-                    'fields' => 'id,name,status,objective,created_time,start_time,stop_time,daily_budget,lifetime_budget',
-                    'limit' => 100
-                ]);
-
-            if ($response->successful()) {
-                $data = $response->json();
-                Log::info("Obtenidas " . count($data['data'] ?? []) . " campañas");
-                return $data['data'] ?? [];
+            // Ejemplo de lógica para extraer cliente del nombre
+            if (preg_match('/^([^|]+)/', $campaignName, $matches)) {
+                $clientName = trim($matches[1]);
+                
+                // Buscar cliente por nombre (descomentar cuando tengas tabla clients)
+                $client = \App\Models\Client::where('name', 'LIKE', "%{$clientName}%")->first();
+                if ($client) {
+                    $client_id = $client->id;
+                    
+                    // Buscar plan activo del cliente
+                    $plan = $client->plans()->where('status', 'active')->first();
+                    if ($plan) {
+                        $plan_id = $plan->id;
+                    }
+                }
             }
-
-            Log::error("Error al obtener campañas: " . $response->body());
-            return [];
-
         } catch (\Exception $e) {
-            Log::error("Excepción al obtener campañas: " . $e->getMessage());
-            return [];
+            Log::warning("Error extrayendo info de campaña: " . $e->getMessage());
         }
+        
+        return [
+            'client_id' => $client_id,
+            'plan_id' => $plan_id
+        ];
     }
 
     /**
-     * Sincronizar una campaña individual
-     */
-    public function syncCampaign($campaignData)
-    {
-        return \App\Models\AdsCampaign::updateOrCreate(
-            ['meta_campaign_id' => $campaignData['id']],
-            [
-                'name' => $campaignData['name'],
-                'status' => $this->mapFacebookStatus($campaignData['status']),
-                'objective' => $campaignData['objective'] ?? null,
-                'budget' => $this->parseFloatValue($campaignData['daily_budget'] ?? $campaignData['lifetime_budget'] ?? null),
-                'client_id' => null, // Se puede asignar después
-                'plan_id' => null,   // Se puede asignar después
-                'advertising_account_id' => session('selected_advertising_account_id'),
-                'start_date' => $campaignData['start_time'] ?? null,
-                'end_date' => $campaignData['stop_time'] ?? null,
-                'meta_insights' => $campaignData,
-                'last_synced_at' => now(),
-            ]
-        );
-    }
-
-    /**
-     * Obtener AdSets de una campaña
+     * Obtener AdSets con rate limiting
      */
     public function getAdSetsForCampaign($campaignId)
     {
-        try {
-            $response = Http::withToken($this->accessToken)
-                ->get("https://graph.facebook.com/v18.0/{$campaignId}/adsets", [
-                    'fields' => 'id,name,status,daily_budget,lifetime_budget,targeting,optimization_goal,billing_event'
-                ]);
-
-            if ($response->successful()) {
-                $data = $response->json();
-                Log::info("Obtenidos " . count($data['data'] ?? []) . " AdSets para campaña {$campaignId}");
-                return $data['data'] ?? [];
-            }
-
-            Log::error("Error al obtener AdSets: " . $response->body());
-            return [];
-
-        } catch (\Exception $e) {
-            Log::error("Excepción al obtener AdSets: " . $e->getMessage());
-            return [];
-        }
+        return $this->makeApiCallWithRetry(function() use ($campaignId) {
+            $adAccount = new AdAccount($this->adAccountId);
+            $adSets = $adAccount->getAdSets([
+                'campaign_id' => $campaignId,
+                'status' => ['ACTIVE', 'PAUSED'],
+                'limit' => 50
+            ], [
+                'id', 'name', 'status', 'daily_budget', 'lifetime_budget',
+                'optimization_goal', 'billing_event', 'targeting'
+            ]);
+            
+            $result = $adSets->getResponse()->getContent();
+            Log::info("Obtenidos " . count($result['data']) . " AdSets para campaña {$campaignId}");
+            
+            return $result['data'] ?? [];
+        }, "AdSets para campaña {$campaignId}");
     }
 
     /**
@@ -446,29 +612,25 @@ class FacebookAdsService
     }
 
     /**
-     * Obtener Ads de un AdSet
+     * Obtener Ads con rate limiting
      */
     public function getAdsForAdSet($adSetId)
     {
-        try {
-            $response = Http::withToken($this->accessToken)
-                ->get("https://graph.facebook.com/v18.0/{$adSetId}/ads", [
-                    'fields' => 'id,name,status,creative{id,object_story_spec,effective_object_story_id,object_story_id,image_url,thumbnail_url}'
-                ]);
-
-            if ($response->successful()) {
-                $data = $response->json();
-                Log::info("Obtenidos " . count($data['data'] ?? []) . " Ads para AdSet {$adSetId}");
-                return $data['data'] ?? [];
-            }
-
-            Log::error("Error al obtener Ads: " . $response->body());
-            return [];
-
-        } catch (\Exception $e) {
-            Log::error("Excepción al obtener Ads: " . $e->getMessage());
-            return [];
-        }
+        return $this->makeApiCallWithRetry(function() use ($adSetId) {
+            $adAccount = new AdAccount($this->adAccountId);
+            $ads = $adAccount->getAds([
+                'adset_id' => $adSetId,
+                'status' => ['ACTIVE', 'PAUSED'],
+                'limit' => 50
+            ], [
+                'id', 'name', 'status', 'creative'
+            ]);
+            
+            $result = $ads->getResponse()->getContent();
+            Log::info("Obtenidos " . count($result['data']) . " Ads para AdSet {$adSetId}");
+            
+            return $result['data'] ?? [];
+        }, "Ads para AdSet {$adSetId}");
     }
 
     /**
@@ -535,11 +697,17 @@ class FacebookAdsService
     }
 
     /**
-     * Mapear estados de Facebook a estados locales
+     * Mapear estados de Facebook a estados locales (arreglado para NULL)
      */
     private function mapFacebookStatus($facebookStatus)
     {
-        $status = strtoupper(trim($facebookStatus));
+        // Manejar valores null, vacíos o no string
+        if ($facebookStatus === null || $facebookStatus === '') {
+            return 'inactive';
+        }
+        
+        // Convertir a string de forma segura
+        $status = strtoupper((string) $facebookStatus);
         
         switch ($status) {
             case 'ACTIVE':

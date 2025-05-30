@@ -1,0 +1,109 @@
+[90m= [39m[
+    "[34mcampaigns_synced[39m" => [35m0[39m,
+    "[34madsets_synced[39m" => [35m0[39m,
+    "[34mads_synced[39m" => [35m0[39m,
+    "[34merrors[39m" => [
+      """
+        [32mCampaña 23847051352990791: SQLSTATE[23502]: Not null violation: 7 ERROR:  null value in column "name" of relation "ads_campaigns" violates not-null constraint[39m\n
+        [32mDETAIL:  Failing row contains (1, null, null, null, null, 23847051352990791, null, null, null, null, null, inactive, 2025-05-28 20:45:38, {"id":"23847051352990791"}, 2025-05-28 20:45:38, 2025-05-28 20:45:38). (Connection: pgsql, SQL: insert into "ads_campaigns" ("meta_campaign_id", "name", "status", "budget", "client_id", "plan_id", "advertising_account_id", "start_date", "end_date", "meta_insights", "last_synced_at", "updated_at", "created_at") values (23847051352990791, ?, inactive, ?, ?, ?, ?, ?, ?, {"id":"23847051352990791"}, 2025-05-28 20:45:38, 2025-05-28 20:45:38, 2025-05-28 20:45:38) returning "id")[39m
+        """,
+      """
+        [32mCampaña 23847047282670791: SQLSTATE[23502]: Not null violation: 7 ERROR:  null value in column "name" of relation "ads_campaigns" violates not-null constraint[39m\n
+        [32mDETAIL:  Failing row contains (2, null, null, null, null, 23847047282670791, null, null, null, null, null, inactive, 2025-05-28 20:45:38, {"id":"23847047282670791"}, 2025-05-28 20:45:38, 2025-05-28 20:45:38). (Connection: pgsql, SQL: insert into "ads_campaigns" ("meta_campaign_id", "name", "status", "budget", "client_id", "plan_id", "advertising_account_id", "start_date", "end_date", "meta_insights", "last_synced_at", "updated_at", "created_at") values (23847047282670791, ?, inactive, ?, ?, ?, ?, ?, ?, {"id":"23847047282670791"}, 2025-05-28 20:45:38, 2025-05-28 20:45:38, 2025-05-28 20:45:38) returning "id")[39m
+        """,
+      """
+        [32mCampaña 23847034597600791: SQLSTATE[23502]: Not null violation: 7 ERROR:  null value in column "name" of relation "ads_campaigns" violates not-null constraint[39m\n
+        [32mDETAIL:  Failing row contains (3, null, null, null, null, 23847034597600791, null, null, null, null, null, inactive, 2025-05-28 20:45:38, {"id":"23847034597600791"}, 2025-05-28 20:45:38, 2025-05-28 20:45:38). (Connection: pgsql, SQL: insert into "ads_campaigns" ("meta_campaign_id", "name", "status", "budget", "client_id", "plan_id", "advertising_account_id", "start_date", "end_date", "meta_insights", "last_synced_at", "updated_at", "created_at") values (23847034597600791, ?, inactive, ?, ?, ?, ?, ?, ?, {"id":"23847034597600791"}, 2025-05-28 20:45:38, 2025-05-28 20:45:38, 2025-05-28 20:45:38) returning "id")[39m
+        """,
+      """
+        [32mCampaña 23846993204840791: SQLSTATE[23502]: Not null violation: 7 ERROR:  null value in column "name" of relation "ads_campaigns" violates not-null constraint[39m\n
+        [32mDETAIL:  Failing row contains (4, null, null, null, null, 23846993204840791, null, null, null, null, null, inactive, 2025-05-28 20:46:08, {"id":"23846993204840791"}, 2025-05-28 20:46:08, 2025-05-28 20:46:08). (Connection: pgsql, SQL: insert into "ads_campaigns" ("meta_campaign_id", "name", "status", "budget", "client_id", "plan_id", "advertising_account_id", "start_date", "end_date", "meta_insights", "last_synced_at", "updated_at", "created_at") values (23846993204840791, ?, inactive, ?, ?, ?, ?, ?, ?, {"id":"23846993204840791"}, 2025-05-28 20:46:08, 2025-05-28 20:46:08, 2025-05-28 20:46:08) returning "id")[39m
+        """,
+      """
+        [32mCampaña 23846979665110791: SQLSTATE[23502]: Not null violation: 7 ERROR:  null value in column "name" of relation "ads_campaigns" violates not-null constraint[39m\n
+        [32mDETAIL:  Failing row contains (5, null, null, null, null, 23846979665110791, null, null, null, null, null, inactive, 2025-05-28 20:46:08, {"id":"23846979665110791"}, 2025-05-28 20:46:08, 2025-05-28 20:46:08). (Connection: pgsql, SQL: insert into "ads_campaigns" ("meta_campaign_id", "name", "status", "budget", "client_id", "plan_id", "advertising_account_id", "start_date", "end_date", "meta_insights", "last_synced_at", "updated_at", "created_at") values (23846979665110791, ?, inactive, ?, ?, ?, ?, ?, ?, {"id":"23846979665110791"}, 2025-05-28 20:46:08, 2025-05-28 20:46:08, 2025-05-28 20:46:08) returning "id")[39m
+        """,
+      """
+        [32mCampaña 23846948666060791: SQLSTATE[23502]: Not null violation: 7 ERROR:  null value in column "name" of relation "ads_campaigns" violates not-null constraint[39m\n
+        [32mDETAIL:  Failing row contains (6, null, null, null, null, 23846948666060791, null, null, null, null, null, inactive, 2025-05-28 20:46:08, {"id":"23846948666060791"}, 2025-05-28 20:46:08, 2025-05-28 20:46:08). (Connection: pgsql, SQL: insert into "ads_campaigns" ("meta_campaign_id", "name", "status", "budget", "client_id", "plan_id", "advertising_account_id", "start_date", "end_date", "meta_insights", "last_synced_at", "updated_at", "created_at") values (23846948666060791, ?, inactive, ?, ?, ?, ?, ?, ?, {"id":"23846948666060791"}, 2025-05-28 20:46:08, 2025-05-28 20:46:08, 2025-05-28 20:46:08) returning "id")[39m
+        """,
+      """
+        [32mCampaña 23846934074420791: SQLSTATE[23502]: Not null violation: 7 ERROR:  null value in column "name" of relation "ads_campaigns" violates not-null constraint[39m\n
+        [32mDETAIL:  Failing row contains (7, null, null, null, null, 23846934074420791, null, null, null, null, null, inactive, 2025-05-28 20:46:38, {"id":"23846934074420791"}, 2025-05-28 20:46:38, 2025-05-28 20:46:38). (Connection: pgsql, SQL: insert into "ads_campaigns" ("meta_campaign_id", "name", "status", "budget", "client_id", "plan_id", "advertising_account_id", "start_date", "end_date", "meta_insights", "last_synced_at", "updated_at", "created_at") values (23846934074420791, ?, inactive, ?, ?, ?, ?, ?, ?, {"id":"23846934074420791"}, 2025-05-28 20:46:38, 2025-05-28 20:46:38, 2025-05-28 20:46:38) returning "id")[39m
+        """,
+      """
+        [32mCampaña 23846934051450791: SQLSTATE[23502]: Not null violation: 7 ERROR:  null value in column "name" of relation "ads_campaigns" violates not-null constraint[39m\n
+        [32mDETAIL:  Failing row contains (8, null, null, null, null, 23846934051450791, null, null, null, null, null, inactive, 2025-05-28 20:46:38, {"id":"23846934051450791"}, 2025-05-28 20:46:38, 2025-05-28 20:46:38). (Connection: pgsql, SQL: insert into "ads_campaigns" ("meta_campaign_id", "name", "status", "budget", "client_id", "plan_id", "advertising_account_id", "start_date", "end_date", "meta_insights", "last_synced_at", "updated_at", "created_at") values (23846934051450791, ?, inactive, ?, ?, ?, ?, ?, ?, {"id":"23846934051450791"}, 2025-05-28 20:46:38, 2025-05-28 20:46:38, 2025-05-28 20:46:38) returning "id")[39m
+        """,
+      """
+        [32mCampaña 23846917094020791: SQLSTATE[23502]: Not null violation: 7 ERROR:  null value in column "name" of relation "ads_campaigns" violates not-null constraint[39m\n
+        [32mDETAIL:  Failing row contains (9, null, null, null, null, 23846917094020791, null, null, null, null, null, inactive, 2025-05-28 20:46:38, {"id":"23846917094020791"}, 2025-05-28 20:46:38, 2025-05-28 20:46:38). (Connection: pgsql, SQL: insert into "ads_campaigns" ("meta_campaign_id", "name", "status", "budget", "client_id", "plan_id", "advertising_account_id", "start_date", "end_date", "meta_insights", "last_synced_at", "updated_at", "created_at") values (23846917094020791, ?, inactive, ?, ?, ?, ?, ?, ?, {"id":"23846917094020791"}, 2025-05-28 20:46:38, 2025-05-28 20:46:38, 2025-05-28 20:46:38) returning "id")[39m
+        """,
+      """
+        [32mCampaña 23846908278030791: SQLSTATE[23502]: Not null violation: 7 ERROR:  null value in column "name" of relation "ads_campaigns" violates not-null constraint[39m\n
+        [32mDETAIL:  Failing row contains (10, null, null, null, null, 23846908278030791, null, null, null, null, null, inactive, 2025-05-28 20:47:08, {"id":"23846908278030791"}, 2025-05-28 20:47:08, 2025-05-28 20:47:08). (Connection: pgsql, SQL: insert into "ads_campaigns" ("meta_campaign_id", "name", "status", "budget", "client_id", "plan_id", "advertising_account_id", "start_date", "end_date", "meta_insights", "last_synced_at", "updated_at", "created_at") values (23846908278030791, ?, inactive, ?, ?, ?, ?, ?, ?, {"id":"23846908278030791"}, 2025-05-28 20:47:08, 2025-05-28 20:47:08, 2025-05-28 20:47:08) returning "id")[39m
+        """,
+      """
+        [32mCampaña 23846874187000791: SQLSTATE[23502]: Not null violation: 7 ERROR:  null value in column "name" of relation "ads_campaigns" violates not-null constraint[39m\n
+        [32mDETAIL:  Failing row contains (11, null, null, null, null, 23846874187000791, null, null, null, null, null, inactive, 2025-05-28 20:47:08, {"id":"23846874187000791"}, 2025-05-28 20:47:08, 2025-05-28 20:47:08). (Connection: pgsql, SQL: insert into "ads_campaigns" ("meta_campaign_id", "name", "status", "budget", "client_id", "plan_id", "advertising_account_id", "start_date", "end_date", "meta_insights", "last_synced_at", "updated_at", "created_at") values (23846874187000791, ?, inactive, ?, ?, ?, ?, ?, ?, {"id":"23846874187000791"}, 2025-05-28 20:47:08, 2025-05-28 20:47:08, 2025-05-28 20:47:08) returning "id")[39m
+        """,
+      """
+        [32mCampaña 23846859344350791: SQLSTATE[23502]: Not null violation: 7 ERROR:  null value in column "name" of relation "ads_campaigns" violates not-null constraint[39m\n
+        [32mDETAIL:  Failing row contains (12, null, null, null, null, 23846859344350791, null, null, null, null, null, inactive, 2025-05-28 20:47:08, {"id":"23846859344350791"}, 2025-05-28 20:47:08, 2025-05-28 20:47:08). (Connection: pgsql, SQL: insert into "ads_campaigns" ("meta_campaign_id", "name", "status", "budget", "client_id", "plan_id", "advertising_account_id", "start_date", "end_date", "meta_insights", "last_synced_at", "updated_at", "created_at") values (23846859344350791, ?, inactive, ?, ?, ?, ?, ?, ?, {"id":"23846859344350791"}, 2025-05-28 20:47:08, 2025-05-28 20:47:08, 2025-05-28 20:47:08) returning "id")[39m
+        """,
+      """
+        [32mCampaña 23846817305100791: SQLSTATE[23502]: Not null violation: 7 ERROR:  null value in column "name" of relation "ads_campaigns" violates not-null constraint[39m\n
+        [32mDETAIL:  Failing row contains (13, null, null, null, null, 23846817305100791, null, null, null, null, null, inactive, 2025-05-28 20:47:38, {"id":"23846817305100791"}, 2025-05-28 20:47:38, 2025-05-28 20:47:38). (Connection: pgsql, SQL: insert into "ads_campaigns" ("meta_campaign_id", "name", "status", "budget", "client_id", "plan_id", "advertising_account_id", "start_date", "end_date", "meta_insights", "last_synced_at", "updated_at", "created_at") values (23846817305100791, ?, inactive, ?, ?, ?, ?, ?, ?, {"id":"23846817305100791"}, 2025-05-28 20:47:38, 2025-05-28 20:47:38, 2025-05-28 20:47:38) returning "id")[39m
+        """,
+      """
+        [32mCampaña 23846792649010791: SQLSTATE[23502]: Not null violation: 7 ERROR:  null value in column "name" of relation "ads_campaigns" violates not-null constraint[39m\n
+        [32mDETAIL:  Failing row contains (14, null, null, null, null, 23846792649010791, null, null, null, null, null, inactive, 2025-05-28 20:47:38, {"id":"23846792649010791"}, 2025-05-28 20:47:38, 2025-05-28 20:47:38). (Connection: pgsql, SQL: insert into "ads_campaigns" ("meta_campaign_id", "name", "status", "budget", "client_id", "plan_id", "advertising_account_id", "start_date", "end_date", "meta_insights", "last_synced_at", "updated_at", "created_at") values (23846792649010791, ?, inactive, ?, ?, ?, ?, ?, ?, {"id":"23846792649010791"}, 2025-05-28 20:47:38, 2025-05-28 20:47:38, 2025-05-28 20:47:38) returning "id")[39m
+        """,
+      """
+        [32mCampaña 23846789751150791: SQLSTATE[23502]: Not null violation: 7 ERROR:  null value in column "name" of relation "ads_campaigns" violates not-null constraint[39m\n
+        [32mDETAIL:  Failing row contains (15, null, null, null, null, 23846789751150791, null, null, null, null, null, inactive, 2025-05-28 20:47:38, {"id":"23846789751150791"}, 2025-05-28 20:47:38, 2025-05-28 20:47:38). (Connection: pgsql, SQL: insert into "ads_campaigns" ("meta_campaign_id", "name", "status", "budget", "client_id", "plan_id", "advertising_account_id", "start_date", "end_date", "meta_insights", "last_synced_at", "updated_at", "created_at") values (23846789751150791, ?, inactive, ?, ?, ?, ?, ?, ?, {"id":"23846789751150791"}, 2025-05-28 20:47:38, 2025-05-28 20:47:38, 2025-05-28 20:47:38) returning "id")[39m
+        """,
+      """
+        [32mCampaña 23846789710230791: SQLSTATE[23502]: Not null violation: 7 ERROR:  null value in column "name" of relation "ads_campaigns" violates not-null constraint[39m\n
+        [32mDETAIL:  Failing row contains (16, null, null, null, null, 23846789710230791, null, null, null, null, null, inactive, 2025-05-28 20:48:08, {"id":"23846789710230791"}, 2025-05-28 20:48:08, 2025-05-28 20:48:08). (Connection: pgsql, SQL: insert into "ads_campaigns" ("meta_campaign_id", "name", "status", "budget", "client_id", "plan_id", "advertising_account_id", "start_date", "end_date", "meta_insights", "last_synced_at", "updated_at", "created_at") values (23846789710230791, ?, inactive, ?, ?, ?, ?, ?, ?, {"id":"23846789710230791"}, 2025-05-28 20:48:08, 2025-05-28 20:48:08, 2025-05-28 20:48:08) returning "id")[39m
+        """,
+      """
+        [32mCampaña 23846784194510791: SQLSTATE[23502]: Not null violation: 7 ERROR:  null value in column "name" of relation "ads_campaigns" violates not-null constraint[39m\n
+        [32mDETAIL:  Failing row contains (17, null, null, null, null, 23846784194510791, null, null, null, null, null, inactive, 2025-05-28 20:48:08, {"id":"23846784194510791"}, 2025-05-28 20:48:08, 2025-05-28 20:48:08). (Connection: pgsql, SQL: insert into "ads_campaigns" ("meta_campaign_id", "name", "status", "budget", "client_id", "plan_id", "advertising_account_id", "start_date", "end_date", "meta_insights", "last_synced_at", "updated_at", "created_at") values (23846784194510791, ?, inactive, ?, ?, ?, ?, ?, ?, {"id":"23846784194510791"}, 2025-05-28 20:48:08, 2025-05-28 20:48:08, 2025-05-28 20:48:08) returning "id")[39m
+        """,
+      """
+        [32mCampaña 23846772004330791: SQLSTATE[23502]: Not null violation: 7 ERROR:  null value in column "name" of relation "ads_campaigns" violates not-null constraint[39m\n
+        [32mDETAIL:  Failing row contains (18, null, null, null, null, 23846772004330791, null, null, null, null, null, inactive, 2025-05-28 20:48:08, {"id":"23846772004330791"}, 2025-05-28 20:48:08, 2025-05-28 20:48:08). (Connection: pgsql, SQL: insert into "ads_campaigns" ("meta_campaign_id", "name", "status", "budget", "client_id", "plan_id", "advertising_account_id", "start_date", "end_date", "meta_insights", "last_synced_at", "updated_at", "created_at") values (23846772004330791, ?, inactive, ?, ?, ?, ?, ?, ?, {"id":"23846772004330791"}, 2025-05-28 20:48:08, 2025-05-28 20:48:08, 2025-05-28 20:48:08) returning "id")[39m
+        """,
+      """
+        [32mCampaña 23846768492590791: SQLSTATE[23502]: Not null violation: 7 ERROR:  null value in column "name" of relation "ads_campaigns" violates not-null constraint[39m\n
+        [32mDETAIL:  Failing row contains (19, null, null, null, null, 23846768492590791, null, null, null, null, null, inactive, 2025-05-28 20:48:38, {"id":"23846768492590791"}, 2025-05-28 20:48:38, 2025-05-28 20:48:38). (Connection: pgsql, SQL: insert into "ads_campaigns" ("meta_campaign_id", "name", "status", "budget", "client_id", "plan_id", "advertising_account_id", "start_date", "end_date", "meta_insights", "last_synced_at", "updated_at", "created_at") values (23846768492590791, ?, inactive, ?, ?, ?, ?, ?, ?, {"id":"23846768492590791"}, 2025-05-28 20:48:38, 2025-05-28 20:48:38, 2025-05-28 20:48:38) returning "id")[39m
+        """,
+      """
+        [32mCampaña 23846768465760791: SQLSTATE[23502]: Not null violation: 7 ERROR:  null value in column "name" of relation "ads_campaigns" violates not-null constraint[39m\n
+        [32mDETAIL:  Failing row contains (20, null, null, null, null, 23846768465760791, null, null, null, null, null, inactive, 2025-05-28 20:48:38, {"id":"23846768465760791"}, 2025-05-28 20:48:38, 2025-05-28 20:48:38). (Connection: pgsql, SQL: insert into "ads_campaigns" ("meta_campaign_id", "name", "status", "budget", "client_id", "plan_id", "advertising_account_id", "start_date", "end_date", "meta_insights", "last_synced_at", "updated_at", "created_at") values (23846768465760791, ?, inactive, ?, ?, ?, ?, ?, ?, {"id":"23846768465760791"}, 2025-05-28 20:48:38, 2025-05-28 20:48:38, 2025-05-28 20:48:38) returning "id")[39m
+        """,
+      """
+        [32mCampaña 23846768422280791: SQLSTATE[23502]: Not null violation: 7 ERROR:  null value in column "name" of relation "ads_campaigns" violates not-null constraint[39m\n
+        [32mDETAIL:  Failing row contains (21, null, null, null, null, 23846768422280791, null, null, null, null, null, inactive, 2025-05-28 20:48:38, {"id":"23846768422280791"}, 2025-05-28 20:48:38, 2025-05-28 20:48:38). (Connection: pgsql, SQL: insert into "ads_campaigns" ("meta_campaign_id", "name", "status", "budget", "client_id", "plan_id", "advertising_account_id", "start_date", "end_date", "meta_insights", "last_synced_at", "updated_at", "created_at") values (23846768422280791, ?, inactive, ?, ?, ?, ?, ?, ?, {"id":"23846768422280791"}, 2025-05-28 20:48:38, 2025-05-28 20:48:38, 2025-05-28 20:48:38) returning "id")[39m
+        """,
+      """
+        [32mCampaña 23846768354090791: SQLSTATE[23502]: Not null violation: 7 ERROR:  null value in column "name" of relation "ads_campaigns" violates not-null constraint[39m\n
+        [32mDETAIL:  Failing row contains (22, null, null, null, null, 23846768354090791, null, null, null, null, null, inactive, 2025-05-28 20:49:08, {"id":"23846768354090791"}, 2025-05-28 20:49:08, 2025-05-28 20:49:08). (Connection: pgsql, SQL: insert into "ads_campaigns" ("meta_campaign_id", "name", "status", "budget", "client_id", "plan_id", "advertising_account_id", "start_date", "end_date", "meta_insights", "last_synced_at", "updated_at", "created_at") values (23846768354090791, ?, inactive, ?, ?, ?, ?, ?, ?, {"id":"23846768354090791"}, 2025-05-28 20:49:08, 2025-05-28 20:49:08, 2025-05-28 20:49:08) returning "id")[39m
+        """,
+      """
+        [32mCampaña 23846768275460791: SQLSTATE[23502]: Not null violation: 7 ERROR:  null value in column "name" of relation "ads_campaigns" violates not-null constraint[39m\n
+        [32mDETAIL:  Failing row contains (23, null, null, null, null, 23846768275460791, null, null, null, null, null, inactive, 2025-05-28 20:49:08, {"id":"23846768275460791"}, 2025-05-28 20:49:08, 2025-05-28 20:49:08). (Connection: pgsql, SQL: insert into "ads_campaigns" ("meta_campaign_id", "name", "status", "budget", "client_id", "plan_id", "advertising_account_id", "start_date", "end_date", "meta_insights", "last_synced_at", "updated_at", "created_at") values (23846768275460791, ?, inactive, ?, ?, ?, ?, ?, ?, {"id":"23846768275460791"}, 2025-05-28 20:49:08, 2025-05-28 20:49:08, 2025-05-28 20:49:08) returning "id")[39m
+        """,
+      """
+        [32mCampaña 23846768251950791: SQLSTATE[23502]: Not null violation: 7 ERROR:  null value in column "name" of relation "ads_campaigns" violates not-null constraint[39m\n
+        [32mDETAIL:  Failing row contains (24, null, null, null, null, 23846768251950791, null, null, null, null, null, inactive, 2025-05-28 20:49:08, {"id":"23846768251950791"}, 2025-05-28 20:49:08, 2025-05-28 20:49:08). (Connection: pgsql, SQL: insert into "ads_campaigns" ("meta_campaign_id", "name", "status", "budget", "client_id", "plan_id", "advertising_account_id", "start_date", "end_date", "meta_insights", "last_synced_at", "updated_at", "created_at") values (23846768251950791, ?, inactive, ?, ?, ?, ?, ?, ?, {"id":"23846768251950791"}, 2025-05-28 20:49:08, 2025-05-28 20:49:08, 2025-05-28 20:49:08) returning "id")[39m
+        """,
+      """
+        [32mCampaña 23846767471000791: SQLSTATE[23502]: Not null violation: 7 ERROR:  null value in column "name" of relation "ads_campaigns" violates not-null constraint[39m\n
+        [32mDETAIL:  Failing row contains (25, null, null, null, null, 23846767471000791, null, null, null, null, null, inactive, 2025-05-28 20:49:38, {"id":"23846767471000791"}, 2025-05-28 20:49:38, 2025-05-28 20:49:38). (Connection: pgsql, SQL: insert into "ads_campaigns" ("meta_campaign_id", "name", "status", "budget", "client_id", "plan_id", "advertising_account_id", "start_date", "end_date", "meta_insights", "last_synced_at", "updated_at", "created_at") values (23846767471000791, ?, inactive, ?, ?, ?, ?, ?, ?, {"id":"23846767471000791"}, 2025-05-28 20:49:38, 2025-05-28 20:49:38, 2025-05-28 20:49:38) returning "id")[39m
+        """,
+    ],
+    "[34mbatches_processed[39m" => [35m9[39m,
+  ]
+

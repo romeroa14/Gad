@@ -25,7 +25,7 @@ return new class extends Migration
             
             // Información básica de la campaña
             $table->date('start_date');
-            $table->date('end_date');
+            $table->date('end_date')->nullable();
             $table->decimal('budget', 15, 2)->nullable()->default(0);
             $table->decimal('actual_cost', 15, 2)->nullable();
             $table->decimal('cost_per_conversion', 15, 2)->nullable();
